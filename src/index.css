@@ -1,0 +1,6 @@
+/* Minimal global styles for the app */
+html,body,#root{height:100%;margin:0;padding:0}
+body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;background:#F3F6F2;color:#15241B}
+
+/* Helpers used by components */
+.gx-root{min-height:100vh}
