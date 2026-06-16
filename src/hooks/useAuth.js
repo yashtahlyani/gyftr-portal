@@ -1,7 +1,7 @@
 /* ─── hooks/useAuth.js ─── */
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-import { CURRENT_USER } from "../constants";
+import { CURRENT_USER, USER_BY_EMAIL } from "../constants";
 
 export function useAuth() {
   const [authed,      setAuthed]      = useState(false);
@@ -15,13 +15,13 @@ export function useAuth() {
     setAuthed(true);
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("role, name, full_name")
+      .select("role, full_name")
       .eq("id", session.user.id)
       .single();
     const name = session.user.user_metadata?.full_name
               || session.user.user_metadata?.name
-              || profileData?.name
               || profileData?.full_name
+              || USER_BY_EMAIL[authName.toLowerCase()]
               || authName;
  const userRole = profileData?.role || (["deepankar.h", "anirudh.motwani", "yash.tahlyani"].includes(authName.toLowerCase()) ? "manager" : "user");
     setRole(userRole);

@@ -87,6 +87,18 @@ export const TEAM_OF = {
 
 export const CURRENT_USER = "Deepankar Hemnani";
 
+export const USER_BY_EMAIL = {
+  "ananya.saril":    "Ananya Saril",
+  "bhavana.bhaskar": "Bhavana Bhavkar",
+  "reet":            "Reet Suman",
+  "uday.jadoun":     "Uday Jadoun",
+  "vanshika.atri":   "Vanshika Atri",
+  "sakshi.s1":       "Sakshi Sharma",
+  "snigdha.b":       "Snigdha Banerjee",
+  "priyanshu":       "Priyanshu",
+  "harshita.m":      "Harshita M",
+};
+
 export const TASK_TYPES = [
   "Discussion","Emailer","Sms","WhatsApp","BTF","ATF","T&C","Important Instructions",
   "Redemption Steps","Video Script","Category BTF","Homepage BTF","Occassion BTF","Banner",
