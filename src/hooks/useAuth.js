@@ -18,7 +18,11 @@ export function useAuth() {
       .select("role, name, full_name")
       .eq("id", session.user.id)
       .single();
-    const name     = profileData?.name || profileData?.full_name || authName;
+    const name = session.user.user_metadata?.full_name
+              || session.user.user_metadata?.name
+              || profileData?.name
+              || profileData?.full_name
+              || authName;
  const userRole = profileData?.role || (["deepankar.h", "anirudh.motwani", "yash.tahlyani"].includes(authName.toLowerCase()) ? "manager" : "user");
     setRole(userRole);
     setCurrentUser(authName);
