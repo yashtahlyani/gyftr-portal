@@ -18,10 +18,10 @@ export function useAuth() {
       .select("role, full_name")
       .eq("id", session.user.id)
       .single();
-    const name = session.user.user_metadata?.full_name
-              || session.user.user_metadata?.name
-              || profileData?.full_name
+    const name = profileData?.full_name
               || USER_BY_EMAIL[authName.toLowerCase()]
+              || session.user.user_metadata?.full_name
+              || session.user.user_metadata?.name
               || authName;
  const userRole = profileData?.role || (["deepankar.h", "anirudh.motwani", "yash.tahlyani"].includes(authName.toLowerCase()) ? "manager" : "user");
     setRole(userRole);
@@ -43,6 +43,9 @@ export function useAuth() {
   const logout = async () => {
     if (supabase) await supabase.auth.signOut();
     setAuthed(false);
+    setRole("user");
+    setCurrentUser(CURRENT_USER);
+    setDisplayName(CURRENT_USER);
   };
 
   return { authed, setAuthed, currentUser, setCurrentUser, displayName, setDisplayName, role, setRole, logout };

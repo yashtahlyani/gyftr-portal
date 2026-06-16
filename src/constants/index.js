@@ -66,7 +66,7 @@ export const OWNERS          = [
   "Sakshi Sharma",
   "Snigdha Banerjee",
   "Vanshika Atri",
-  "Bhavana Bhavkar",
+  "Bhavana Bhaskar",
   "Reet Suman",
   "Uday Jadoun",
   "Ananya Saril",

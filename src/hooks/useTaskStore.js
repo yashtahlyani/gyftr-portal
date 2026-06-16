@@ -119,5 +119,16 @@ export function useTaskStore(currentUser) {
     fetchTasks();
   }, [tasks, currentUser, fetchTasks]);
 
-  return { tasks, setTasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask };
+  /* ── deleteTask ── */
+  const deleteTask = useCallback(async (id) => {
+    setTasks(ts => ts.filter(t => t.id !== id));
+    if (!supabase) return;
+    await supabase.from("effort_entries").delete().eq("task_id", id);
+    await supabase.from("comments").delete().eq("task_id", id);
+    await supabase.from("audit_log").delete().eq("task_id", id);
+    await supabase.from("task_files").delete().eq("task_id", id);
+    await supabase.from("tasks").delete().eq("id", id);
+  }, []);
+
+  return { tasks, setTasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask, deleteTask };
 }

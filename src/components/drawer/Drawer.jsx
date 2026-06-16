@@ -1,6 +1,6 @@
 /* ─── components/drawer/Drawer.jsx ─── */
 import React from "react";
-import { X, Timer, Clock } from "lucide-react";
+import { X, Timer, Clock, Trash2 } from "lucide-react";
 import { StatusChip, PriorityChip, Avatar } from "../ui";
 import { DrawerUpdateTab }   from "./DrawerUpdateTab";
 import { DrawerEffortTab }   from "./DrawerEffortTab";
@@ -10,7 +10,7 @@ import { totalEffort, fmtHrs, fmtDate, taskNo, teamOf, agingDays } from "../../u
 
 const TABS = ["Update","Effort","Comments","Activity"];
 
-export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffort, removeEffort, addComment, isManager }) {
+export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffort, removeEffort, addComment, deleteTask, isManager }) {
   if (!task) return null;
 
   const total      = totalEffort(task.effort);
@@ -29,7 +29,21 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
             <span style={{ fontSize:11, fontWeight:700, color:"var(--pop-deep)", background:"var(--pop-soft)", padding:"2px 8px", borderRadius:7 }}>{task.property}</span>
             <span style={{ fontSize:11, fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"2px 8px", borderRadius:7 }}>{teamOf(task)} · {task.type}</span>
             <PriorityChip p={task.priority}/>
-            <button className="gx-btn gx-btn-ghost" style={{ marginLeft:"auto", padding:7 }} onClick={onClose}><X size={18}/></button>
+            <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+              {isManager && (
+                <button className="gx-btn gx-btn-ghost" style={{ padding:7, color:"#C42424" }}
+                  title="Delete task"
+                  onClick={() => {
+                    if (window.confirm(`Delete task #${taskNo(task)}? This cannot be undone.`)) {
+                      onClose();
+                      deleteTask(task.id);
+                    }
+                  }}>
+                  <Trash2 size={16}/>
+                </button>
+              )}
+              <button className="gx-btn gx-btn-ghost" style={{ padding:7 }} onClick={onClose}><X size={18}/></button>
+            </div>
           </div>
           <h2 className="gx-disp" style={{ fontSize:20, fontWeight:700, margin:"10px 0 10px" }}>{task.task}</h2>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>

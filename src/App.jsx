@@ -30,7 +30,7 @@ export default function App() {
   const [openTab,    setOpenTab]    = useState("Update");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask } = useTaskStore(currentUser);
+  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask, deleteTask } = useTaskStore(currentUser);
 
   useEffect(() => { if (authed) fetchTasks(); }, [authed, fetchTasks]);
 
@@ -125,6 +125,7 @@ export default function App() {
           addEffort={addEffort}
           removeEffort={removeEffort}
           addComment={addComment}
+          deleteTask={deleteTask}
           isManager={isManager}
         />
       )}
