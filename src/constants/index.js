@@ -58,6 +58,7 @@ export const PROPERTIES = [
   "Wedding Box",
   "Xtra Rewards",
   "Godrej Club One",
+  "Spentro",
 ];
 
 export const TEAMS           = ["Content"];
@@ -158,6 +159,7 @@ export const PROP_COLOR = {
   "Wedding Box":       "#BE185D",
   "Xtra Rewards":      "#047857",
   "Godrej Club One":   "#B45309",
+  "Spentro":           "#0F766E",
 };
 
 export const TYPE_PALETTE = [
