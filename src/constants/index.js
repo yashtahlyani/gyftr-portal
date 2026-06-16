@@ -21,7 +21,6 @@ export const PRIORITY_LIST = ["High","Medium","Low"];
 export const PROPERTIES = [
   "Smartbuy (HDFC)",
   "GyFTR",
-  "Amex Edgerewards",
   "SBI Card",
   "Indusind Insta Vouchers / Indus Moments shopping",
   "Indusmoments",
@@ -32,7 +31,6 @@ export const PROPERTIES = [
   "RBL Yescart",
   "BFL",
   "Kotak",
-  "SBI Yono",
   "Standard Chartered",
   "Timespoint",
   "Hello BPCL",
@@ -122,7 +120,6 @@ export const PEOPLE = {
 export const PROP_COLOR = {
   "Smartbuy (HDFC)":   "#62A92A",
   "GyFTR":             "#2D7FF9",
-  "Amex Edgerewards":  "#8B5CF6",
   "SBI Card":          "#F5A623",
   "Indusind Insta Vouchers / Indus Moments shopping": "#06B6D4",
   "Indusmoments":      "#E11D74",
@@ -133,7 +130,6 @@ export const PROP_COLOR = {
   "RBL Yescart":       "#84CC16",
   "BFL":               "#EF4444",
   "Kotak":             "#F59E0B",
-  "SBI Yono":          "#10B981",
   "Standard Chartered":"#3B82F6",
   "Timespoint":        "#EC4899",
   "Hello BPCL":        "#6366F1",
