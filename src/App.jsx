@@ -37,8 +37,8 @@ export default function App() {
   const isManager    = role === "manager";
   const visibleTasks = useMemo(() => {
     if (isManager) return tasks;
-    return tasks.filter(t => t.owner?.toLowerCase() === currentUser?.toLowerCase());
-  }, [isManager, tasks, currentUser]);
+    return tasks.filter(t => t.owner?.toLowerCase() === displayName?.toLowerCase());
+  }, [isManager, tasks, displayName]);
 
   useEffect(() => { if (!isManager && view==="admin") setView("dashboard"); }, [isManager, view]);
 
