@@ -5,7 +5,7 @@ import { GyftrLogo } from "./ui/GyftrLogo";
 import { supabase } from "../lib/supabase";
 
 export function Login({ onIn }) {
-  const [email,   setEmail]   = useState("arvind@gyftr.com");
+  const [email,   setEmail]   = useState("");
   const [pass,    setPass]    = useState("");
   const [err,     setErr]     = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +37,7 @@ export function Login({ onIn }) {
           </p>
           <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Company email</label>
           <input className="gx-input" style={{ margin:"6px 0 14px" }} type="email" value={email}
+            placeholder="enter your email address"
             onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&signIn()}/>
           <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Password</label>
           <input className="gx-input" type="password" placeholder="••••••••" style={{ margin:"6px 0 18px" }}
