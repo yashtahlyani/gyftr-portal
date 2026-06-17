@@ -69,6 +69,7 @@ export const OWNERS          = [
   "Reet Suman",
   "Uday Jadoun",
   "Ananya Saril",
+  "Saim",
 ];
 export const BUSINESS_OWNERS = ["Deepankar Hemnani", "Anirudh Motwani"];
 
@@ -82,6 +83,7 @@ export const TEAM_OF = {
   "Uday Jadoun":       "Content",
   "Ananya Saril":      "Content",
   "Anirudh Motwani":   "Content",
+  "Saim":              "Content",
 };
 
 export const CURRENT_USER = "Deepankar Hemnani";
@@ -96,6 +98,7 @@ export const USER_BY_EMAIL = {
   "snigdha.b":       "Snigdha Banerjee",
   "priyanshu":       "Priyanshu",
   "harshita.m":      "Harshita M",
+  "saim.k":          "Saim",
 };
 
 export const TASK_TYPES = [
@@ -115,6 +118,7 @@ export const PEOPLE = {
   "Uday Jadoun":       { c:"#15803D" },
   "Ananya Saril":      { c:"#B01457" },
   "Anirudh Motwani":   { c:"#6D4C99" },
+  "Saim":              { c:"#0369A1" },
 };
 
 export const PROP_COLOR = {
