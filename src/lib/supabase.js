@@ -40,6 +40,7 @@ export function dbToTask(row) {
     startedAt:     row.started_at ? new Date(row.started_at).getTime() : null,
     updatedTs:     new Date(row.updated_at).getTime(),
     updatedAt:     relativeTime(row.updated_at),
+    createdAt:     row.created_at ? row.created_at.slice(0, 10) : null,
     task_files:    row.task_files || [],
   };
 }

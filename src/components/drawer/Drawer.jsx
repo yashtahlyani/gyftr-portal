@@ -10,7 +10,7 @@ import { totalEffort, fmtHrs, fmtDate, taskNo, teamOf, agingDays } from "../../u
 
 const TABS = ["Update","Effort","Comments","Activity"];
 
-export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffort, removeEffort, addComment, deleteTask, isManager }) {
+export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, deleteTask, isManager, role }) {
   if (!task) return null;
 
   const total      = totalEffort(task.effort);
@@ -69,7 +69,7 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
         <div style={{ flex:1, overflowY:"auto", padding:isComments?"0":"20px 22px", display:"flex", flexDirection:"column" }}>
           {tab==="Update" && (
             <div style={{ padding:"20px 22px" }}>
-              <DrawerUpdateTab task={task} patch={patch} patchUpdate={patchUpdate} isManager={isManager}/>
+              <DrawerUpdateTab task={task} patch={patch} patchUpdate={patchUpdate} stopTimerAndLog={stopTimerAndLog} isManager={isManager}/>
             </div>
           )}
           {tab==="Effort" && (
@@ -78,7 +78,7 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
             </div>
           )}
           {tab==="Comments" && (
-            <DrawerCommentsTab task={task} addComment={addComment}/>
+            <DrawerCommentsTab task={task} addComment={addComment} role={role}/>
           )}
           {tab==="Activity" && (
             <div style={{ padding:"20px 22px" }}>

@@ -30,7 +30,7 @@ export default function App() {
   const [openTab,    setOpenTab]    = useState("Update");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask, deleteTask } = useTaskStore(currentUser);
+  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, addTask, deleteTask } = useTaskStore(currentUser);
 
   useEffect(() => { if (authed) fetchTasks(); }, [authed, fetchTasks]);
 
@@ -106,7 +106,7 @@ export default function App() {
           <Dashboard tasks={visibleTasks} onCreate={isManager?()=>setCreateOpen(true):undefined} openDrawer={openDrawer} canCreate={isManager}/>
         )}
         {view==="board" && (
-          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} openDrawer={openDrawer} role={role}/>
+          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role}/>
         )}
         {view==="admin" && isManager && (
           <Admin tasks={tasks} openDrawer={openDrawer}/>
@@ -124,9 +124,11 @@ export default function App() {
           patchUpdate={patchUpdate}
           addEffort={addEffort}
           removeEffort={removeEffort}
+          stopTimerAndLog={stopTimerAndLog}
           addComment={addComment}
           deleteTask={deleteTask}
           isManager={isManager}
+          role={role}
         />
       )}
 

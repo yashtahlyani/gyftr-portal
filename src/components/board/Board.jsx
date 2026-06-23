@@ -31,7 +31,7 @@ const COLS = [
 ];
 const TABLE_W = COLS.reduce((s,c)=>s+c.w,0) + 16;
 
-export function Board({ tasks, patch, addEffort, openDrawer, role }) {
+export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role }) {
   const isManager = role === "manager";
   const [q,         setQ]         = useState("");
   const [fProp,     setFProp]     = useState("All");
@@ -50,14 +50,16 @@ export function Board({ tasks, patch, addEffort, openDrawer, role }) {
         && (fPri==="All"     || t.priority===fPri)
         && (q===""           || (t.task+t.id+t.type+t.property+(t.owner||"")+(t.businessOwner||"")).toLowerCase().includes(q.toLowerCase()))
       )
-      .sort((a,b) => (b.updatedTs||0)-(a.updatedTs||0))
+      .sort((a,b) => {
+        const aC = a.projectStatus === "Completed" ? 1 : 0;
+        const bC = b.projectStatus === "Completed" ? 1 : 0;
+        if (aC !== bC) return aC - bC;
+        return (b.updatedTs||0) - (a.updatedTs||0);
+      })
   , [tasks, q, fProp, fStatus, fAssignee, fBizOwner, fPri]);
 
   const startTimer = (id)  => patch(id, { running:true, startedAt:Date.now() });
-  const stopTimer  = (t,h) => {
-    addEffort(t.id, { date:TODAY_ISO, status:t.effortStatus, hours:Math.round(h*100)/100 });
-    patch(t.id, { running:false, startedAt:null });
-  };
+  const stopTimer  = (t,h) => stopTimerAndLog(t, h);
   const cycleLock = (t) => {
     const s    = t.lockState || "locked";
     const next = s==="unlocked" ? "locked" : "unlocked";
@@ -203,11 +205,12 @@ export function Board({ tasks, patch, addEffort, openDrawer, role }) {
 
                     {/* Project Status — chip menu for manager, plain chip for employee (employee changes via drawer) */}
                     <td className="gx-td">
-                      {isManager
-                        ? <ChipMenu trigger={<StatusChip status={t.projectStatus}/>} options={PROJECT_STATUS_LIST} value={t.projectStatus}
-                            onPick={s=>patch(t.id,{ projectStatus:s })}
-                            render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>
-                       : <ChipMenu trigger={<StatusChip status={t.projectStatus}/>} options={PROJECT_STATUS_LIST} value={t.projectStatus} onPick={s=>patch(t.id,{projectStatus:s})} render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>}
+                      <ChipMenu trigger={<StatusChip status={t.projectStatus}/>} options={PROJECT_STATUS_LIST} value={t.projectStatus}
+                        onPick={s => {
+                          if (s === "Completed" && t.running) stopTimerAndLog(t, (Date.now() - t.startedAt) / 3600000);
+                          patch(t.id, { projectStatus: s });
+                        }}
+                        render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>
                     </td>
 
                     {/* Lock */}

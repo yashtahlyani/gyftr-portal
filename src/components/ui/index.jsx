@@ -110,13 +110,14 @@ export function TimerCell({ running, startedAt, onStart, onStop }) {
   }, [running]);
 
   if (running) {
-    const sec  = Math.max(0, Math.floor((Date.now()-startedAt)/1000));
-    const hh   = Math.floor(sec/3600);
-    const mm   = String(Math.floor((sec%3600)/60)).padStart(2,"0");
-    const ss   = String(sec%60).padStart(2,"0");
-    const disp = hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
+    const anchor = startedAt || Date.now();
+    const sec    = Math.max(0, Math.floor((Date.now() - anchor) / 1000));
+    const hh     = Math.floor(sec / 3600);
+    const mm     = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+    const ss     = String(sec % 60).padStart(2, "0");
+    const disp   = hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
     return (
-      <button className="gx-btn" onClick={() => onStop((Date.now()-startedAt)/3600000)}
+      <button className="gx-btn" onClick={() => onStop((Date.now() - anchor) / 3600000)}
         style={{ background:"#FDE2E2", color:"#C42424", padding:"6px 9px", fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:6 }}>
         <Square size={11} fill="#C42424"/> {disp}
       </button>

@@ -1,12 +1,19 @@
 /* ─── components/drawer/DrawerUpdateTab.jsx ─── */
 import React from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, CalendarDays } from "lucide-react";
 import { Caret } from "../ui";
 import { OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
-import { teamOf } from "../../utils";
+import { teamOf, fmtDate } from "../../utils";
 
-export function DrawerUpdateTab({ task, patch, patchUpdate, isManager }) {
+export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isManager }) {
   const u = task.update || {};
+
+  const onProjectStatusChange = (s) => {
+    if (s === "Completed" && task.running) {
+      stopTimerAndLog(task, (Date.now() - task.startedAt) / 3600000);
+    }
+    patch(task.id, { projectStatus: s });
+  };
 
   const onPickFile = (e) => {
     const list = Array.from(e.target.files||[]).map(f=>({
@@ -20,6 +27,15 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, isManager }) {
 
   return (
     <div className="gx-fade" style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+      {/* Date Raised — read-only */}
+      {task.createdAt && (
+        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:"#F4F8F4", borderRadius:8, border:"1px solid var(--line)" }}>
+          <CalendarDays size={14} style={{ color:"var(--pop-deep)", flex:"none" }}/>
+          <span style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Date Raised:</span>
+          <span style={{ fontSize:12.5, fontWeight:700, color:"var(--ink)" }}>{fmtDate(task.createdAt)}</span>
+        </div>
+      )}
 
       {/* Assigned To — manager only */}
       {isManager && (
@@ -50,16 +66,16 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, isManager }) {
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Current phase of the content/creative work.</div>
       </div>
 
-      {/* Project Status — everyone can change */}
+      {/* Project Status — everyone can change; auto-stops timer if Completed */}
       <div>
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Project Status</label>
         <div style={{ position:"relative" }}>
           <select className="gx-input" style={{ appearance:"none", cursor:"pointer", paddingRight:30 }}
-            value={task.projectStatus||""} onChange={e=>patch(task.id,{ projectStatus:e.target.value })}>
+            value={task.projectStatus||""} onChange={e=>onProjectStatusChange(e.target.value)}>
             {PROJECT_STATUS_LIST.map(s=><option key={s} value={s}>{s}</option>)}
           </select><Caret/>
         </div>
-        <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Overall project delivery status — visible on the board and in reports.</div>
+        <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Overall project delivery status — visible on the board and in reports. Setting to Completed will auto-stop any running timer.</div>
       </div>
 
       {/* Delivered Date — everyone can fill */}

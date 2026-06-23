@@ -56,6 +56,22 @@ export function useTaskStore(currentUser) {
     await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, []);
 
+  /* ── stopTimerAndLog — atomic: stops timer + logs effort in one flow to prevent race conditions ── */
+  const stopTimerAndLog = useCallback(async (task, hours) => {
+    const entry = { date: TODAY_ISO, status: task.effortStatus, hours: Math.round(hours * 100) / 100 };
+    setTasks(ts => ts.map(t => t.id === task.id ? {
+      ...t, running: false, startedAt: null,
+      effort: [...(t.effort || []), entry],
+      updatedAt: "just now", updatedTs: Date.now(),
+    } : t));
+    if (!supabase) return;
+    // Stop the timer in DB first — prevents subscription refetch from showing it as still running
+    await supabase.from("tasks").update({ running: false, started_at: null, updated_at: new Date() }).eq("id", task.id);
+    await supabase.from("effort_entries").insert({
+      task_id: task.id, date: entry.date, status: entry.status, hours: entry.hours, manual: false,
+    });
+  }, []);
+
   /* ── removeEffort ── */
   const removeEffort = useCallback(async (id, idx) => {
     let removedId = null;
@@ -71,11 +87,13 @@ export function useTaskStore(currentUser) {
   }, []);
 
   /* ── addComment ── */
-  const addComment = useCallback(async (id, body) => {
-    const c = { a: currentUser, r:"Team", t: body, ts: fmtDate(TODAY_ISO)+", now" };
-    setTasks(ts => ts.map(t => t.id===id ? { ...t, comments:[...(t.comments||[]),c], updatedAt:"just now", updatedTs:Date.now() } : t));
+  const addComment = useCallback(async (id, body, role="Team") => {
+    const now = new Date();
+    const ts  = now.toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    const c   = { a: currentUser, r: role, t: body, ts };
+    setTasks(ts2 => ts2.map(t => t.id===id ? { ...t, comments:[...(t.comments||[]),c], updatedAt:"just now", updatedTs:Date.now() } : t));
     if (!supabase) return;
-    await supabase.from("comments").insert({ task_id:id, author:currentUser, role:"Team", body });
+    await supabase.from("comments").insert({ task_id:id, author:currentUser, role, body });
     await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, [currentUser]);
 
@@ -99,6 +117,8 @@ export function useTaskStore(currentUser) {
       effort_entries: [], comments: [], audit_log: [], task_files: [],
       description: "", delivered: null,
       updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+      // createdAt for UI
+      createdAt: new Date().toISOString().slice(0, 10),
     });
 
     setTasks(ts => [uiTask, ...ts]);
@@ -130,5 +150,5 @@ export function useTaskStore(currentUser) {
     await supabase.from("tasks").delete().eq("id", id);
   }, []);
 
-  return { tasks, setTasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, addComment, addTask, deleteTask };
+  return { tasks, setTasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, addTask, deleteTask };
 }
