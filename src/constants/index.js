@@ -22,8 +22,8 @@ export const PROPERTIES = [
   "Smartbuy (HDFC)",
   "GyFTR",
   "SBI Card",
-  "Indusind Insta Vouchers / Indus Moments shopping",
-  "Indusmoments",
+  "Indus Insta",
+  "Indus Moments",
   "Expressgifts",
   "Airtel",
   "Ratna Zillion",
@@ -57,6 +57,8 @@ export const PROPERTIES = [
   "Xtra Rewards",
   "Godrej Club One",
   "Spentro",
+  "Axis",
+  "SimplyClick",
 ];
 
 export const TEAMS           = ["Content"];
@@ -125,8 +127,8 @@ export const PROP_COLOR = {
   "Smartbuy (HDFC)":   "#62A92A",
   "GyFTR":             "#2D7FF9",
   "SBI Card":          "#F5A623",
-  "Indusind Insta Vouchers / Indus Moments shopping": "#06B6D4",
-  "Indusmoments":      "#E11D74",
+  "Indus Insta":       "#06B6D4",
+  "Indus Moments":     "#E11D74",
   "Expressgifts":      "#15803D",
   "Airtel":            "#FF3B30",
   "Ratna Zillion":     "#A855F7",
@@ -160,6 +162,8 @@ export const PROP_COLOR = {
   "Xtra Rewards":      "#047857",
   "Godrej Club One":   "#B45309",
   "Spentro":           "#0F766E",
+  "Axis":              "#B91C1C",
+  "SimplyClick":       "#10B981",
 };
 
 export const TYPE_PALETTE = [
