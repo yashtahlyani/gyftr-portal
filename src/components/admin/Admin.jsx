@@ -51,26 +51,31 @@ export function Admin({ tasks, openDrawer }) {
     items.forEach(t=>{ ownerHours[t.owner]=(ownerHours[t.owner]||0)+totalEffortR(t.effort); });
     const topOwners = Object.entries(ownerHours).filter(([,h])=>h>0).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([o])=>o);
     const typeCount  = {};
-    items.forEach(t=>{ typeCount[t.type]=(typeCount[t.type]||0)+1; });
+    items.forEach(t=>{ (Array.isArray(t.type)?t.type:t.type?[t.type]:[]).forEach(ty=>{ typeCount[ty]=(typeCount[ty]||0)+1; }); });
     const topTypes   = Object.entries(typeCount).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([t])=>t);
     return { p, items, ...stats(items), topOwners, topTypes };
   });
 
   const scopedTasks   = selProp ? rangedTasks.filter(t=>t.property===selProp) : rangedTasks;
   const members       = useMemo(()=>Array.from(new Set(scopedTasks.map(t=>t.owner).filter(Boolean))).sort(),[scopedTasks]);
-  const types         = useMemo(()=>Array.from(new Set(scopedTasks.map(t=>t.type).filter(Boolean))).sort(),[scopedTasks]);
-  const keyOf         = (t)=> mode==="person"?t.owner : mode==="type"?t.type : t.projectStatus;
-  const keys          = mode==="person"?members : mode==="type"?types : PROJECT_STATUS_LIST;
-  const groups        = keys
-    .map(key=>({ key, items:scopedTasks.filter(t=>keyOf(t)===key) }))
-    .filter(g=> mode!=="status"||g.items.length>0)
-    .filter(g=> q===""||g.key.toLowerCase().includes(q.toLowerCase()));
+  const types         = useMemo(()=>Array.from(new Set(scopedTasks.flatMap(t=>Array.isArray(t.type)?t.type:t.type?[t.type]:[]))).sort(),[scopedTasks]);
+  const keyOf         = (t)=> mode==="person"?t.owner : t.projectStatus;
+  const keys          = mode==="person"?members : PROJECT_STATUS_LIST;
+  const groups        = (mode==="type"
+    ? types
+        .filter(ty=> q===""||ty.toLowerCase().includes(q.toLowerCase()))
+        .map(key=>({ key, items:scopedTasks.filter(t=>(Array.isArray(t.type)?t.type:t.type?[t.type]:[]).includes(key)) }))
+    : keys
+        .map(key=>({ key, items:scopedTasks.filter(t=>keyOf(t)===key) }))
+        .filter(g=> mode!=="status"||g.items.length>0)
+        .filter(g=> q===""||g.key.toLowerCase().includes(q.toLowerCase()))
+  );
   if (mode!=="status") groups.sort((a,b)=>stats(b.items).hours - stats(a.items).hours);
 
   const team         = stats(scopedTasks);
   const overdueTasks = scopedTasks.filter(t=>agingDays(t)>0).sort((a,b)=>agingDays(b)-agingDays(a));
   const idle         = members.filter(m=>{ const st=stats(scopedTasks.filter(t=>t.owner===m)); return st.active>0 && st.weekHours<1; });
-  const selItems     = sel ? scopedTasks.filter(t=>keyOf(t)===sel) : [];
+  const selItems     = sel ? (mode==="type" ? scopedTasks.filter(t=>(Array.isArray(t.type)?t.type:t.type?[t.type]:[]).includes(sel)) : scopedTasks.filter(t=>keyOf(t)===sel)) : [];
 
   return (
     <div className="gx-fade" style={{ padding:"24px 30px", overflowY:"auto", height:"100%" }}>
@@ -268,7 +273,7 @@ export function Admin({ tasks, openDrawer }) {
                   <td className="gx-td gx-mono" style={{ color:"var(--ink-soft)" }}>{taskNo(t)}</td>
                   <td className="gx-td"><span style={{ fontSize:11, fontWeight:700, color:PROP_COLOR[t.property], background:PROP_COLOR[t.property]+"22", padding:"3px 9px", borderRadius:7 }}>{t.property}</span></td>
                   <td className="gx-td" style={{ fontWeight:600 }}>{t.task}</td>
-                  <td className="gx-td" style={{ fontSize:12.5 }}>{mode==="person" ? <span style={{ fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"3px 9px", borderRadius:7 }}>{t.type}</span> : <span style={{ display:"flex", alignItems:"center", gap:7 }}><Avatar name={t.owner} size={20}/>{t.owner}</span>}</td>
+                  <td className="gx-td" style={{ fontSize:12.5 }}>{mode==="person" ? <span style={{ fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"3px 9px", borderRadius:7 }}>{(Array.isArray(t.type)?t.type:t.type?[t.type]:[]).join(", ")||"—"}</span> : <span style={{ display:"flex", alignItems:"center", gap:7 }}><Avatar name={t.owner} size={20}/>{t.owner}</span>}</td>
                   <td className="gx-td"><StatusChip status={t.projectStatus}/></td>
                   <td className="gx-td gx-mono" style={{ fontWeight:700, color:"#067A8C" }}>{fmtHrs(totalEffortR(t.effort))}</td>
                   <td className="gx-td">{ag>0 ? <span className="gx-chip" style={{ background:"#FDE2E2", color:"#C42424" }}><Clock size={11}/>{ag}d</span> : <span style={{ fontSize:12, color:"var(--pop-deep)", fontWeight:600 }}>On time</span>}</td>

@@ -1,5 +1,5 @@
 /* ─── components/board/Board.jsx ─── */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Search, Download, Lock, Timer, Clock, Pencil, Play, Square, Flag, Unlock, RefreshCw, EyeOff, Eye } from "lucide-react";
 import {
   StatusChip, PriorityChip, ChipMenu, TextCell, DateCell, EffortAddCell, TimerCell, LockCell, Avatar, Caret,
@@ -32,6 +32,48 @@ const COLS = [
 ];
 const TABLE_W = COLS.reduce((s,c)=>s+c.w,0) + 16;
 
+const toTypeArr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+
+function TypeSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  const sel = toTypeArr(value);
+
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const toggle = (t) => {
+    const next = sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t];
+    onChange(next);
+  };
+
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      <div
+        className="gx-sel"
+        onClick={() => setOpen(o => !o)}
+        style={{ cursor:"pointer", userSelect:"none", fontSize:12, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:110 }}
+        title={sel.join(", ")}
+      >
+        {sel.length === 0 ? <span style={{ color:"var(--ink-soft)" }}>—</span> : sel.join(", ")}
+      </div>
+      {open && (
+        <div style={{ position:"absolute", top:"100%", left:0, zIndex:300, background:"var(--surface)", border:"1px solid var(--line)", borderRadius:8, boxShadow:"0 4px 16px rgba(0,0,0,.12)", minWidth:190, maxHeight:260, overflowY:"auto", padding:6 }}>
+          {TASK_TYPES.map(tt => (
+            <label key={tt} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", cursor:"pointer", borderRadius:6, fontSize:12.5, background:sel.includes(tt)?"var(--pop-soft)":"transparent" }}>
+              <input type="checkbox" checked={sel.includes(tt)} onChange={() => toggle(tt)} style={{ accentColor:"var(--pop-deep)" }}/>
+              {tt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
   const isManager = role === "manager";
   const [q,             setQ]             = useState("");
@@ -51,7 +93,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
         && (fBizOwner==="All"|| t.businessOwner===fBizOwner)
         && (fPri==="All"     || t.priority===fPri)
         && (!hideCompleted   || t.projectStatus!=="Completed")
-        && (q===""           || (t.task+t.id+t.type+t.property+(t.owner||"")+(t.businessOwner||"")).toLowerCase().includes(q.toLowerCase()))
+        && (q===""           || (t.task+t.id+toTypeArr(t.type).join(" ")+t.property+(t.owner||"")+(t.businessOwner||"")).toLowerCase().includes(q.toLowerCase()))
       )
       .sort((a,b) => (b.updatedTs||0) - (a.updatedTs||0))
   , [tasks, q, fProp, fStatus, fAssignee, fBizOwner, fPri, hideCompleted]);
@@ -198,10 +240,8 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Task type */}
                     <td className="gx-td" style={{ position:"relative" }}>
                       {isManager
-                        ? <select className="gx-sel" value={t.type} onChange={e=>patch(t.id,{type:e.target.value})}>
-                            {TASK_TYPES.map(c=><option key={c}>{c}</option>)}
-                          </select>
-                        : <span>{t.type}</span>}
+                        ? <TypeSelect value={t.type} onChange={v => patch(t.id, { type: v })}/>
+                        : <span style={{ fontSize:12 }}>{toTypeArr(t.type).join(", ") || "—"}</span>}
                     </td>
 
                     {/* Assigned To */}

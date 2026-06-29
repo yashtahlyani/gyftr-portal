@@ -73,8 +73,9 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const effEntries = (t)=>(from||to)?(t.effort||[]).filter(e=>inRange(e.date)):(t.effort||[]);
   const effTotal   = (t)=>effEntries(t).reduce((a,e)=>a+(Number(e.hours)||0),0);
 
+  const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
   const filtered = useMemo(()=>tasks.filter(t=>
-    selProps.includes(t.property) && selTypes.includes(t.type) &&
+    selProps.includes(t.property) && tArr(t).some(ty=>selTypes.includes(ty)) &&
     fStatus.includes(t.projectStatus) && (fOwner==="All"||t.owner===fOwner) && taskInRange(t)
   ),[tasks,selProps,selTypes,fStatus,fOwner,range]);
 
@@ -109,10 +110,11 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   /* ── Hours per DATE · stacked by task type ── */
   const dateMap = {};
   filtered.forEach(t=>{
+    const ty = tArr(t)[0]; // use primary type for chart attribution
+    if (!ty || !chartTypes.includes(ty)) return;
     effEntries(t).forEach(e=>{
-      if (!chartTypes.includes(t.type)) return;
       if (!dateMap[e.date]) dateMap[e.date] = { date:e.date };
-      dateMap[e.date][t.type] = (dateMap[e.date][t.type]||0) + (Number(e.hours)||0);
+      dateMap[e.date][ty] = (dateMap[e.date][ty]||0) + (Number(e.hours)||0);
     });
   });
   const dateData        = Object.values(dateMap).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>({ ...d, name:fmtDate(d.date) }));
@@ -121,11 +123,12 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   /* ── Hours per PROPERTY · stacked by task type ── */
   const propMap = {};
   filtered.forEach(t=>{
-    if (!chartTypes.includes(t.type)) return;
+    const ty = tArr(t)[0];
+    if (!ty || !chartTypes.includes(ty)) return;
     const p = t.property;
     if (!propMap[p]) propMap[p] = { name:p };
     effEntries(t).forEach(e=>{
-      propMap[p][t.type] = (propMap[p][t.type]||0) + (Number(e.hours)||0);
+      propMap[p][ty] = (propMap[p][ty]||0) + (Number(e.hours)||0);
     });
   });
   const propHoursData    = PROPERTIES.filter(p=>selProps.includes(p) && propMap[p]).map(p=>propMap[p]);

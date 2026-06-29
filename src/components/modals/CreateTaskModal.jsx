@@ -1,5 +1,5 @@
 /* ─── components/modals/CreateTaskModal.jsx ─── */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { X, Table2, ChevronDown } from "lucide-react";
 import { Avatar, Caret } from "../ui";
 import {
@@ -8,12 +8,47 @@ import {
 import { PROP_COLOR } from "../../constants";
 import { totalEffort, fmtHrs, fmtDate, dayDiff, plusDays, TODAY_ISO, typeColor } from "../../utils";
 
+function TypeMultiSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+  const sel = Array.isArray(value) ? value : value ? [value] : [];
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const toggle = (t) => onChange(sel.includes(t) ? sel.filter(x=>x!==t) : [...sel, t]);
+  return (
+    <div ref={ref} style={{ position:"relative" }}>
+      <div
+        className="gx-input"
+        onClick={() => setOpen(o=>!o)}
+        style={{ cursor:"pointer", userSelect:"none", minHeight:38, display:"flex", alignItems:"center", flexWrap:"wrap", gap:4, paddingTop:5, paddingBottom:5 }}
+      >
+        {sel.length === 0
+          ? <span style={{ color:"var(--ink-soft)", fontSize:13 }}>Select task type(s)…</span>
+          : sel.map(t => <span key={t} style={{ background:"var(--pop-soft)", color:"var(--pop-deep)", padding:"2px 8px", borderRadius:6, fontSize:12, fontWeight:600 }}>{t}</span>)}
+      </div>
+      {open && (
+        <div style={{ position:"absolute", top:"100%", left:0, zIndex:300, background:"var(--surface)", border:"1px solid var(--line)", borderRadius:8, boxShadow:"0 4px 16px rgba(0,0,0,.12)", minWidth:220, maxHeight:260, overflowY:"auto", padding:6 }}>
+          {TASK_TYPES.map(tt => (
+            <label key={tt} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", cursor:"pointer", borderRadius:6, fontSize:12.5, background:sel.includes(tt)?"var(--pop-soft)":"transparent" }}>
+              <input type="checkbox" checked={sel.includes(tt)} onChange={()=>toggle(tt)} style={{ accentColor:"var(--pop-deep)" }}/>
+              {tt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CreateTaskModal({ tasks, onClose, onCreate }) {
   /* ── Form state ── */
   const [f, setF] = useState({
     property:      PROPERTIES[0],
     task:          "",
-    type:          TASK_TYPES[0],
+    type:          [],
     businessOwner: BUSINESS_OWNERS[0],
     assignee:      OWNERS[0],
     expected:      TODAY_ISO,
@@ -21,7 +56,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
     priority:      "Medium",
   });
   const set   = (k,v) => setF(p=>({...p,[k]:v}));
-  const valid = f.task.trim() && f.property && f.type && f.businessOwner && f.assignee && f.expected;
+  const valid = f.task.trim() && f.property && f.type.length > 0 && f.businessOwner && f.assignee && f.expected;
 
   const Lbl = ({ children, opt }) => (
     <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", textTransform:"uppercase", letterSpacing:.03, display:"block", marginBottom:6 }}>
@@ -46,20 +81,21 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
   const toggleProp = (p)=>setSelProps(prev=>prev.includes(p)?prev.filter(x=>x!==p):[...prev,p]);
   const toggleType = (t)=>setSelTypes(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]);
 
+  const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
   const avCutoff = avDays ? plusDays(TODAY_ISO,avDays) : null;
   const pool = useMemo(()=>tasks.filter(t=>{
     if (t.projectStatus==="Completed"||t.projectStatus==="Deferred") return false;
-    if (!selTypes.includes(t.type)) return false;
+    if (!tArr(t).some(ty=>selTypes.includes(ty))) return false;
     if (!selProps.includes(t.property)) return false;
     if (avCutoff) { const d=t.due||t.expected||""; if(!d) return true; if(d>avCutoff) return false; }
     return true;
   }),[tasks,selTypes,selProps,avDays]);
 
-  const activeCols = useMemo(()=>{ const seen=new Set(pool.map(t=>t.type)); return TASK_TYPES.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes]);
+  const activeCols = useMemo(()=>{ const seen=new Set(pool.flatMap(t=>tArr(t))); return TASK_TYPES.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes]);
   const heat = (n)=>{ if(n===0) return { bg:"transparent", fg:"#b0bfb6" }; if(n===1) return { bg:"#E8F5E9", fg:"#2E7D32" }; if(n===2) return { bg:"#C8E6C9", fg:"#1B5E20" }; if(n<=4) return { bg:"#FFF3E0", fg:"#E65100" }; return { bg:"#FFEBEE", fg:"#C62828" }; };
   const sNear = (dues)=>{ if(!dues.length) return ""; const sorted=[...dues].sort(); const d=dayDiff(TODAY_ISO,sorted[0]); if(d<0) return `${Math.abs(d)}d late`; if(d===0) return "today"; return `in ${d}d`; };
   const dueColor = (d)=>{ if(!d) return "#b0bfb6"; const diff=dayDiff(TODAY_ISO,d); if(diff<0) return "#C42424"; if(diff<=1) return "#E65100"; return "#15803D"; };
-  const buildRow = (items)=>{ const byType={}; activeCols.forEach(c=>{ byType[c]={ n:0, dues:[] }; }); let totalTasks=0,totalHrs=0,allDues=[]; items.forEach(t=>{ if(byType[t.type]){ byType[t.type].n++; if(t.due) byType[t.type].dues.push(t.due); } totalTasks++; totalHrs+=totalEffort(t.effort); if(t.due) allDues.push(t.due); }); allDues.sort(); return { byType, totalTasks, totalHrs, nearestDue:allDues[0]||"" }; };
+  const buildRow = (items)=>{ const byType={}; activeCols.forEach(c=>{ byType[c]={ n:0, dues:[] }; }); let totalTasks=0,totalHrs=0,allDues=[]; items.forEach(t=>{ tArr(t).forEach(ty=>{ if(byType[ty]){ byType[ty].n++; if(t.due) byType[ty].dues.push(t.due); } }); totalTasks++; totalHrs+=totalEffort(t.effort); if(t.due) allDues.push(t.due); }); allDues.sort(); return { byType, totalTasks, totalHrs, nearestDue:allDues[0]||"" }; };
   const memberData = OWNERS.map(owner=>{ const memberTasks=pool.filter(t=>t.owner===owner); const propRows=selProps.map(prop=>({ prop, ...buildRow(memberTasks.filter(t=>t.property===prop)) })); return { owner, propRows, total:buildRow(memberTasks) }; });
   const grandTotal = buildRow(pool);
 
@@ -84,7 +120,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
               <Lbl>Task name *</Lbl>
               <textarea className="gx-input" rows={3} style={{ resize:"none", fontFamily:"var(--font-b)" }} placeholder="Describe the deliverable clearly…" value={f.task} onChange={e=>set("task",e.target.value)}/>
             </div>
-            <div><Lbl>Task type *</Lbl><Sel k="type" opts={TASK_TYPES}/></div>
+            <div><Lbl>Task type *</Lbl><TypeMultiSelect value={f.type} onChange={v=>set("type",v)}/></div>
             <div><Lbl>Priority</Lbl><Sel k="priority" opts={PRIORITY_LIST}/></div>
             <div><Lbl>Business Owner *</Lbl><Sel k="businessOwner" opts={BUSINESS_OWNERS}/></div>
             <div><Lbl>Assigned To *</Lbl><Sel k="assignee" opts={OWNERS}/></div>

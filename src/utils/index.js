@@ -80,7 +80,7 @@ export const exportBoardCSV = (rows) => {
     const effortLog = (t.effort||[]).map(e=>`${fmtDate(e.date)} · ${e.status} · ${fmtHrs(e.hours)}${e.manual?" (MANUAL)":""}`).join(" | ");
     const comments  = (t.comments||[]).map(c=>`${c.a} (${c.ts}): ${c.t}`).join(" | ");
     lines.push([
-      taskNo(t), t.property, t.task, t.type, teamOf(t), t.owner, t.businessOwner,
+      taskNo(t), t.property, t.task, (Array.isArray(t.type)?t.type:t.type?[t.type]:[]).join(", "), teamOf(t), t.owner, t.businessOwner,
       t.priority, t.projectStatus, t.effortStatus,
       t.expected||t.requested, t.due, t.delivered,
       totalEffort(t.effort), agingDays(t), t.lockState||"locked",

@@ -27,7 +27,7 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             <span className="gx-mono" style={{ fontSize:12, fontWeight:600, color:"var(--ink-soft)" }}>#{taskNo(task)}</span>
             <span style={{ fontSize:11, fontWeight:700, color:"var(--pop-deep)", background:"var(--pop-soft)", padding:"2px 8px", borderRadius:7 }}>{task.property}</span>
-            <span style={{ fontSize:11, fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"2px 8px", borderRadius:7 }}>{teamOf(task)} · {task.type}</span>
+            <span style={{ fontSize:11, fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"2px 8px", borderRadius:7 }}>{teamOf(task)} · {(Array.isArray(task.type)?task.type:task.type?[task.type]:[]).join(", ")||"—"}</span>
             <PriorityChip p={task.priority}/>
             <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
               {isManager && (
