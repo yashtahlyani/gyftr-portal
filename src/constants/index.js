@@ -49,7 +49,7 @@ export const PROPERTIES = [
   "Anmol Rishtey",
   "Prince Pipe",
   "Yesrewardz Flash Sale",
-  "nfternr",
+
   "Insta benefits",
   "Indusoffer",
   "HP Pay",
@@ -156,7 +156,7 @@ export const PROP_COLOR = {
   "Anmol Rishtey":     "#D97706",
   "Prince Pipe":       "#2563EB",
   "Yesrewardz Flash Sale": "#DB2777",
-  "nfternr":           "#0D9488",
+
   "Insta benefits":    "#EA580C",
   "Indusoffer":        "#4F46E5",
   "HP Pay":            "#16A34A",
