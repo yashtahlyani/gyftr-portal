@@ -1,18 +1,23 @@
 /* ─── components/drawer/DrawerUpdateTab.jsx ─── */
-import React from "react";
+import React, { useRef } from "react";
 import { Plus, X, CalendarDays } from "lucide-react";
 import { Caret } from "../ui";
 import { OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
-import { teamOf, fmtDate } from "../../utils";
+import { teamOf, fmtDate, TODAY_ISO } from "../../utils";
 
 export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isManager }) {
   const u = task.update || {};
+  const descRef = useRef(null);
 
   const onProjectStatusChange = (s) => {
-    if (s === "Completed" && task.running) {
-      stopTimerAndLog(task, (Date.now() - task.startedAt) / 3600000);
+    const updates = { projectStatus: s };
+    if (s === "Completed") {
+      if (!task.delivered) updates.delivered = TODAY_ISO;
+      if (task.running) {
+        stopTimerAndLog(task, (Date.now() - task.startedAt) / 3600000);
+      }
     }
-    patch(task.id, { projectStatus: s });
+    patch(task.id, updates, `Project Status → ${s}`);
   };
 
   const onPickFile = (e) => {
@@ -25,17 +30,37 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
   };
   const removeFile = (i) => patchUpdate(task.id, { files:(u.files||[]).filter((_,k)=>k!==i) });
 
+  const handleDescKeyDown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const ta = e.target;
+      const start = ta.selectionStart;
+      const end   = ta.selectionEnd;
+      const val   = u.description || "";
+      const newVal = val.substring(0, start) + "\t" + val.substring(end);
+      patchUpdate(task.id, { description: newVal });
+      requestAnimationFrame(() => {
+        if (descRef.current) {
+          descRef.current.selectionStart = descRef.current.selectionEnd = start + 1;
+        }
+      });
+    }
+  };
+
   return (
     <div className="gx-fade" style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
-      {/* Date Raised — read-only */}
-      {task.createdAt && (
-        <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:"#F4F8F4", borderRadius:8, border:"1px solid var(--line)" }}>
-          <CalendarDays size={14} style={{ color:"var(--pop-deep)", flex:"none" }}/>
-          <span style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Date Raised:</span>
-          <span style={{ fontSize:12.5, fontWeight:700, color:"var(--ink)" }}>{fmtDate(task.createdAt)}</span>
-        </div>
-      )}
+      {/* Date Raised — always visible */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", background:"#F4F8F4", borderRadius:8, border:"1px solid var(--line)" }}>
+        <CalendarDays size={14} style={{ color:"var(--pop-deep)", flex:"none" }}/>
+        <span style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Date Raised:</span>
+        <span style={{ fontSize:12.5, fontWeight:700, color:"var(--ink)" }}>
+          {task.createdAt ? fmtDate(task.createdAt) : "—"}
+        </span>
+        <span className="gx-mono" style={{ fontSize:11, color:"var(--ink-soft)", marginLeft:4 }}>
+          #{task.id}
+        </span>
+      </div>
 
       {/* Assigned To — manager only */}
       {isManager && (
@@ -59,14 +84,14 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Effort Status</label>
         <div style={{ position:"relative" }}>
           <select className="gx-input" style={{ appearance:"none", cursor:"pointer", paddingRight:30 }}
-            value={task.effortStatus||""} onChange={e=>patch(task.id,{ effortStatus:e.target.value })}>
+            value={task.effortStatus||""} onChange={e=>patch(task.id,{ effortStatus:e.target.value },`Effort Status → ${e.target.value}`)}>
             {EFFORT_STATUS_LIST.map(s=><option key={s} value={s}>{s}</option>)}
           </select><Caret/>
         </div>
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Current phase of the content/creative work.</div>
       </div>
 
-      {/* Project Status — everyone can change; auto-stops timer if Completed */}
+      {/* Project Status — auto-stops timer and sets delivered date when Completed */}
       <div>
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Project Status</label>
         <div style={{ position:"relative" }}>
@@ -75,7 +100,9 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
             {PROJECT_STATUS_LIST.map(s=><option key={s} value={s}>{s}</option>)}
           </select><Caret/>
         </div>
-        <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Overall project delivery status — visible on the board and in reports. Setting to Completed will auto-stop any running timer.</div>
+        <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>
+          Setting to <b>Completed</b> will auto-stop any running timer and record today as the delivered date.
+        </div>
       </div>
 
       {/* Delivered Date — everyone can fill */}
@@ -86,12 +113,22 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Fill in when the work has actually gone live.</div>
       </div>
 
-      {/* Comment / Description — everyone */}
+      {/* Comment / Description — monospace so pasted tables render cleanly; Tab inserts a tab character */}
       <div>
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Comment / Description</label>
-        <textarea className="gx-input" rows={4} style={{ resize:"vertical", fontFamily:"var(--font-b)" }}
-          placeholder="Notes, brief, or reason for any delay…"
-          value={u.description||""} onChange={e=>patchUpdate(task.id,{ description:e.target.value })}/>
+        <textarea
+          ref={descRef}
+          className="gx-input"
+          rows={6}
+          style={{ resize:"vertical", fontFamily:"var(--font-m)", whiteSpace:"pre-wrap", fontSize:12.5 }}
+          placeholder={"Notes, brief, or reason for any delay…\n\nTip: Tab key inserts a tab for table formatting."}
+          value={u.description||""}
+          onChange={e=>patchUpdate(task.id,{ description:e.target.value })}
+          onKeyDown={handleDescKeyDown}
+        />
+        <div style={{ fontSize:10.5, color:"var(--ink-soft)", marginTop:4 }}>
+          Tip: paste tab-separated content (from Excel/Sheets) — spacing is preserved.
+        </div>
       </div>
 
       {/* Files */}

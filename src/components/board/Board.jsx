@@ -1,6 +1,6 @@
 /* ─── components/board/Board.jsx ─── */
 import React, { useState, useMemo } from "react";
-import { Search, Download, Lock, Timer, Clock, Pencil, Play, Square, Flag, Unlock } from "lucide-react";
+import { Search, Download, Lock, Timer, Clock, Pencil, Play, Square, Flag, Unlock, RefreshCw, EyeOff, Eye } from "lucide-react";
 import {
   StatusChip, PriorityChip, ChipMenu, TextCell, DateCell, EffortAddCell, TimerCell, LockCell, Avatar, Caret,
 } from "../ui";
@@ -13,6 +13,7 @@ import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_
 
 const COLS = [
   { k:"no",            label:"No.",            w:36  },
+  { k:"raised",        label:"Raised",          w:80  },
   { k:"property",      label:"Property",        w:78  },
   { k:"task",          label:"Task",            w:204 },
   { k:"type",          label:"Task Type",       w:114 },
@@ -31,32 +32,31 @@ const COLS = [
 ];
 const TABLE_W = COLS.reduce((s,c)=>s+c.w,0) + 16;
 
-export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role }) {
+export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
   const isManager = role === "manager";
-  const [q,         setQ]         = useState("");
-  const [fProp,     setFProp]     = useState("All");
-  const [fStatus,   setFStatus]   = useState("All");
-  const [fAssignee, setFAssignee] = useState("All");
-  const [fPri,      setFPri]      = useState("All");
-  const [fBizOwner, setFBizOwner] = useState("All");
+  const [q,             setQ]             = useState("");
+  const [fProp,         setFProp]         = useState("All");
+  const [fStatus,       setFStatus]       = useState("All");
+  const [fAssignee,     setFAssignee]     = useState("All");
+  const [fPri,          setFPri]          = useState("All");
+  const [fBizOwner,     setFBizOwner]     = useState("All");
+  const [hideCompleted, setHideCompleted] = useState(true);
 
   const rows = useMemo(() =>
     tasks
       .filter(t =>
-        (fProp==="All"     || t.property===fProp)
+        (fProp==="All"       || t.property===fProp)
         && (fStatus==="All"  || t.projectStatus===fStatus)
         && (fAssignee==="All"|| t.owner===fAssignee)
         && (fBizOwner==="All"|| t.businessOwner===fBizOwner)
         && (fPri==="All"     || t.priority===fPri)
+        && (!hideCompleted   || t.projectStatus!=="Completed")
         && (q===""           || (t.task+t.id+t.type+t.property+(t.owner||"")+(t.businessOwner||"")).toLowerCase().includes(q.toLowerCase()))
       )
-      .sort((a,b) => {
-        const aC = a.projectStatus === "Completed" ? 1 : 0;
-        const bC = b.projectStatus === "Completed" ? 1 : 0;
-        if (aC !== bC) return aC - bC;
-        return (b.updatedTs||0) - (a.updatedTs||0);
-      })
-  , [tasks, q, fProp, fStatus, fAssignee, fBizOwner, fPri]);
+      .sort((a,b) => (b.updatedTs||0) - (a.updatedTs||0))
+  , [tasks, q, fProp, fStatus, fAssignee, fBizOwner, fPri, hideCompleted]);
+
+  const completedCount = useMemo(() => tasks.filter(t => t.projectStatus === "Completed").length, [tasks]);
 
   const startTimer = (id)  => patch(id, { running:true, startedAt:Date.now() });
   const stopTimer  = (t,h) => stopTimerAndLog(t, h);
@@ -64,6 +64,15 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
     const s    = t.lockState || "locked";
     const next = s==="unlocked" ? "locked" : "unlocked";
     patch(t.id, { lockState: next });
+  };
+
+  const handleComplete = (t, s) => {
+    const updates = { projectStatus: s };
+    if (s === "Completed") {
+      if (!t.delivered) updates.delivered = TODAY_ISO;
+      if (t.running) stopTimerAndLog(t, (Date.now() - t.startedAt) / 3600000);
+    }
+    patch(t.id, updates, `Project Status → ${s}`);
   };
 
   const pendingRequests = tasks.filter(t => t.lockState==="requested").length;
@@ -112,8 +121,26 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
             </select><Caret/>
           </div>
         ))}
+
+        {/* Hide/Show completed toggle */}
+        <button
+          className="gx-btn gx-btn-ghost"
+          onClick={() => setHideCompleted(h => !h)}
+          title={hideCompleted ? "Show completed tasks" : "Hide completed tasks"}
+          style={{ border:"1px solid var(--line)", padding:"5px 10px", fontSize:11.5, display:"flex", alignItems:"center", gap:5,
+            color: hideCompleted ? "var(--ink-soft)" : "var(--pop-deep)",
+            background: hideCompleted ? "transparent" : "var(--pop-soft)" }}>
+          {hideCompleted ? <EyeOff size={13}/> : <Eye size={13}/>}
+          {hideCompleted ? `Completed (${completedCount})` : "Hide Completed"}
+        </button>
+
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:12 }}>
           <span style={{ fontSize:12.5, fontWeight:600, color:"var(--ink-soft)" }}>{rows.length} of {tasks.length}</span>
+          {onRefresh && (
+            <button className="gx-btn gx-btn-ghost" onClick={onRefresh} title="Refresh tasks" style={{ padding:"6px 8px" }}>
+              <RefreshCw size={14}/>
+            </button>
+          )}
           <button className="gx-btn gx-btn-dark" onClick={()=>exportBoardCSV(rows)} title="Export current view to CSV">
             <Download size={15}/> Export CSV
           </button>
@@ -127,15 +154,21 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
             <colgroup>{COLS.map(c=><col key={c.k} style={{ width:c.w }}/>)}</colgroup>
             <thead><tr>{COLS.map(c=><th key={c.k} className="gx-th">{c.label}</th>)}</tr></thead>
             <tbody>
-              {rows.map(t => {
+              {rows.map((t, rowIdx) => {
                 const ag     = agingDays(t);
                 const total  = totalEffort(t.effort);
                 const lockS  = t.lockState || "locked";
                 const canEditPromise = lockS==="unlocked";
+                const isCompleted = t.projectStatus === "Completed";
                 return (
                   <tr key={t.id} className="gx-row">
-                    {/* No. */}
-                    <td className="gx-td gx-mono" style={{ fontWeight:600, color:"var(--ink-soft)", textAlign:"center" }}>{taskNo(t)}</td>
+                    {/* No. — sequential row number, task ID on hover */}
+                    <td className="gx-td gx-mono" title={`Task ID: ${t.id}`} style={{ fontWeight:600, color:"var(--ink-soft)", textAlign:"center" }}>{rowIdx + 1}</td>
+
+                    {/* Raised */}
+                    <td className="gx-td gx-mono" style={{ fontSize:11.5, color:"var(--ink-soft)" }}>
+                      {t.createdAt ? fmtDate(t.createdAt) : "—"}
+                    </td>
 
                     {/* Property */}
                     <td className="gx-td" style={{ position:"relative" }}>
@@ -154,8 +187,9 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                             ? <TextCell value={t.task} bold onCommit={v=>patch(t.id,{task:v})} placeholder="Task name…"/>
                             : <span style={{ fontWeight:600, color:"var(--ink)" }}>{t.task}</span>}
                         </div>
-                        <button className="gx-btn gx-btn-ghost" title="Open update panel"
-                          onClick={()=>openDrawer(t.id,"Update")} style={{ padding:"5px 5px", flex:"none" }}>
+                        <button className="gx-btn" title="Open update panel"
+                          onClick={()=>openDrawer(t.id,"Update")}
+                          style={{ padding:"5px 7px", flex:"none", background:"var(--pop-soft)", color:"var(--pop-deep)" }}>
                           <Pencil size={13}/>
                         </button>
                       </div>
@@ -194,22 +228,17 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                       </div>
                     </td>
 
-                    {/* Effort Status — chip menu for manager, plain chip for employee (employee changes via drawer) */}
+                    {/* Effort Status */}
                     <td className="gx-td">
-                      {isManager
-                        ? <ChipMenu trigger={<StatusChip status={t.effortStatus}/>} options={EFFORT_STATUS_LIST} value={t.effortStatus}
-                            onPick={s=>patch(t.id,{effortStatus:s})}
-                            render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>
-                        : <ChipMenu trigger={<StatusChip status={t.effortStatus}/>} options={EFFORT_STATUS_LIST} value={t.effortStatus} onPick={s=>patch(t.id,{effortStatus:s})} render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>}
+                      <ChipMenu trigger={<StatusChip status={t.effortStatus}/>} options={EFFORT_STATUS_LIST} value={t.effortStatus}
+                        onPick={s=>patch(t.id,{effortStatus:s},`Effort Status → ${s}`)}
+                        render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>
                     </td>
 
-                    {/* Project Status — chip menu for manager, plain chip for employee (employee changes via drawer) */}
+                    {/* Project Status */}
                     <td className="gx-td">
                       <ChipMenu trigger={<StatusChip status={t.projectStatus}/>} options={PROJECT_STATUS_LIST} value={t.projectStatus}
-                        onPick={s => {
-                          if (s === "Completed" && t.running) stopTimerAndLog(t, (Date.now() - t.startedAt) / 3600000);
-                          patch(t.id, { projectStatus: s });
-                        }}
+                        onPick={s => handleComplete(t, s)}
                         render={s=><><span style={{ width:8,height:8,borderRadius:99,background:STATUS[s].dot }}/>{s}</>}/>
                     </td>
 
@@ -236,10 +265,11 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                         : <span style={{ fontSize:11.5, color:"#94a59b", fontStyle:"italic" }}>—</span>}
                     </td>
 
-                    {/* Timer */}
+                    {/* Timer — disabled on completed tasks */}
                     <td className="gx-td">
-                      <TimerCell running={t.running} startedAt={t.startedAt}
-                        onStart={()=>startTimer(t.id)} onStop={(h)=>stopTimer(t,h)}/>
+                      <TimerCell running={t.running} startedAt={t.startedAt} disabled={isCompleted}
+                        onStart={isCompleted ? undefined : ()=>startTimer(t.id)}
+                        onStop={(h)=>stopTimer(t,h)}/>
                     </td>
 
                     {/* Total hours */}
@@ -272,12 +302,21 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                   </tr>
                 );
               })}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={COLS.length} style={{ textAlign:"center", padding:"32px 0", color:"var(--ink-soft)", fontSize:13 }}>
+                    {hideCompleted && completedCount > 0
+                      ? `No active tasks · ${completedCount} completed task${completedCount>1?"s":""} hidden — click "Completed (${completedCount})" above to show`
+                      : "No tasks match the current filters."}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
         <div style={{ fontSize:11.5, color:"var(--ink-soft)", marginTop:10, paddingLeft:2 }}>
-          Tip: the <b>pencil</b> next to a task name opens its update panel where you can also change <b>effort & project status</b>.
+          Tip: the <b>pencil</b> next to a task name opens its update panel where you can also change <b>effort &amp; project status</b>.
           The <b>lock</b> column controls whether the <b>promise date</b> can be changed —{" "}
           <span style={{ color:"#15803D", fontWeight:700 }}>green</span> = editable,{" "}
           <span style={{ color:"#586860", fontWeight:700 }}>grey</span> = locked,{" "}

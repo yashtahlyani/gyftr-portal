@@ -29,13 +29,16 @@ export function useTaskStore(currentUser) {
     return () => supabase.removeChannel(ch);
   }, [fetchTasks]);
 
-  /* ── patch (field-level update) ── */
-  const patch = useCallback(async (id, updates) => {
+  /* ── patch (field-level update) — pass auditMsg to log the change ── */
+  const patch = useCallback(async (id, updates, auditMsg) => {
     setTasks(ts => ts.map(t => t.id===id ? { ...t, ...updates, updatedAt:"just now", updatedTs:Date.now() } : t));
     if (!supabase) return;
     const dbPatch = buildDbPatch(updates);
     await supabase.from("tasks").update(dbPatch).eq("id", id);
-  }, []);
+    if (auditMsg && currentUser) {
+      await supabase.from("audit_log").insert({ task_id: id, action: auditMsg, by_user: currentUser });
+    }
+  }, [currentUser]);
 
   /* ── patchUpdate (description / files) ── */
   const patchUpdate = useCallback(async (id, updates) => {

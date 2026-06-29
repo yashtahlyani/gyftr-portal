@@ -34,6 +34,14 @@ export default function App() {
 
   useEffect(() => { if (authed) fetchTasks(); }, [authed, fetchTasks]);
 
+  /* Refetch when the browser tab regains focus — catches missed real-time events */
+  useEffect(() => {
+    if (!authed) return;
+    const onFocus = () => fetchTasks();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [authed, fetchTasks]);
+
   const isManager    = role === "manager";
   const visibleTasks = useMemo(() => {
     if (isManager) return tasks;
@@ -106,7 +114,7 @@ export default function App() {
           <Dashboard tasks={visibleTasks} onCreate={isManager?()=>setCreateOpen(true):undefined} openDrawer={openDrawer} canCreate={isManager}/>
         )}
         {view==="board" && (
-          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role}/>
+          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role} onRefresh={fetchTasks}/>
         )}
         {view==="admin" && isManager && (
           <Admin tasks={tasks} openDrawer={openDrawer}/>

@@ -101,7 +101,7 @@ export function EffortAddCell({ onAdd }) {
 }
 
 /* ── TimerCell — live running timer with hr+min display ── */
-export function TimerCell({ running, startedAt, onStart, onStop }) {
+export function TimerCell({ running, startedAt, onStart, onStop, disabled }) {
   const [, tick] = useState(0);
   useEffect(() => {
     if (!running) return;
@@ -121,6 +121,11 @@ export function TimerCell({ running, startedAt, onStart, onStop }) {
         style={{ background:"#FDE2E2", color:"#C42424", padding:"6px 9px", fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:6 }}>
         <Square size={11} fill="#C42424"/> {disp}
       </button>
+    );
+  }
+  if (disabled) {
+    return (
+      <span style={{ fontSize:11.5, color:"#94a59b", fontStyle:"italic", padding:"6px 2px" }}>Completed</span>
     );
   }
   return (

@@ -53,7 +53,7 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
             {task.owner && <span className="gx-chip" style={{ background:"var(--pop-soft)", color:"var(--pop-deep)" }}><Avatar name={task.owner} size={14}/> Assigned to {task.owner}</span>}
           </div>
           <div className="gx-mono" style={{ fontSize:11.5, color:"var(--ink-soft)", marginTop:9 }}>
-            Expected by business {fmtDate(task.expected||task.requested)} · Promise {fmtDate(task.due)}
+            Raised {task.createdAt ? fmtDate(task.createdAt) : "—"} · Expected by business {fmtDate(task.expected||task.requested)} · Promise {fmtDate(task.due)}
             {task.delivered ? <> · <span style={{ color:"#0F6B33", fontWeight:700 }}>Delivered {fmtDate(task.delivered)}</span></> : null}
           </div>
         </div>

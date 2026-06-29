@@ -80,7 +80,7 @@ export const TEAM_OF = {
   "Sakshi Sharma":     "Content",
   "Snigdha Banerjee":  "Content",
   "Vanshika Atri":     "Content",
-  "Bhavana Bhavkar":   "Content",
+  "Bhavana Bhaskar":   "Content",
   "Reet Suman":        "Content",
   "Uday Jadoun":       "Content",
   "Ananya Saril":      "Content",
@@ -92,7 +92,7 @@ export const CURRENT_USER = "Deepankar Hemnani";
 
 export const USER_BY_EMAIL = {
   "ananya.saril":    "Ananya Saril",
-  "bhavana.bhaskar": "Bhavana Bhavkar",
+  "bhavana.bhaskar": "Bhavana Bhaskar",
   "reet":            "Reet Suman",
   "uday.jadoun":     "Uday Jadoun",
   "vanshika.atri":   "Vanshika Atri",
@@ -115,7 +115,7 @@ export const PEOPLE = {
   "Sakshi Sharma":     { c:"#C2185B" },
   "Snigdha Banerjee":  { c:"#0E6FA3" },
   "Vanshika Atri":     { c:"#8B5CF6" },
-  "Bhavana Bhavkar":   { c:"#E05C00" },
+  "Bhavana Bhaskar":   { c:"#E05C00" },
   "Reet Suman":        { c:"#0891B2" },
   "Uday Jadoun":       { c:"#15803D" },
   "Ananya Saril":      { c:"#B01457" },
