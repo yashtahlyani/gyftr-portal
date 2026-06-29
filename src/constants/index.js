@@ -48,8 +48,9 @@ export const PROPERTIES = [
   "Prism Aspire",
   "Anmol Rishtey",
   "Prince Pipe",
-  "Yesrewardz Flash Sale",
-
+  "Yesrewardz",
+  "HSBC",
+  "IDFC",
   "Insta benefits",
   "Indusoffer",
   "HP Pay",
@@ -155,7 +156,9 @@ export const PROP_COLOR = {
   "Prism Aspire":      "#F43F5E",
   "Anmol Rishtey":     "#D97706",
   "Prince Pipe":       "#2563EB",
-  "Yesrewardz Flash Sale": "#DB2777",
+  "Yesrewardz":            "#DB2777",
+  "HSBC":                  "#CC0000",
+  "IDFC":                  "#6D28D9",
 
   "Insta benefits":    "#EA580C",
   "Indusoffer":        "#4F46E5",
