@@ -74,6 +74,9 @@ function TypeSelect({ value, onChange }) {
   );
 }
 
+const INACTIVITY_MS = 20 * 60 * 1000; // 20 min
+const HB_KEY = (id) => `gyftr_hb_${id}`;
+
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
   const isManager = role === "manager";
   const [q,             setQ]             = useState("");
@@ -83,6 +86,55 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
   const [fPri,          setFPri]          = useState("All");
   const [fBizOwner,     setFBizOwner]     = useState("All");
   const [hideCompleted, setHideCompleted] = useState(true);
+  const [pauseBanner,   setPauseBanner]   = useState([]); // task names shown in banner
+
+  // paused state: { [taskId]: accumulatedMs }
+  const [pausedMap, setPausedMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("gyftr_paused_map") || "{}"); }
+    catch { return {}; }
+  });
+
+  // Keep refs so the visibilitychange handler never closes over stale values
+  const tasksRef    = useRef(tasks);
+  const patchRef    = useRef(patch);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { patchRef.current = patch;  }, [patch]);
+
+  // Persist pausedMap to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("gyftr_paused_map", JSON.stringify(pausedMap));
+  }, [pausedMap]);
+
+  // Heartbeat: stamp localStorage every 60 s for every running timer
+  useEffect(() => {
+    const write = () =>
+      tasks.filter(t => t.running).forEach(t => localStorage.setItem(HB_KEY(t.id), String(Date.now())));
+    write();
+    const id = setInterval(write, 60_000);
+    return () => clearInterval(id);
+  }, [tasks]);
+
+  // On visibility restore, freeze any timer whose heartbeat gap > 20 min
+  useEffect(() => {
+    const checkGaps = () => {
+      if (document.hidden) return;
+      const now   = Date.now();
+      const names = [];
+      tasksRef.current.filter(t => t.running).forEach(t => {
+        const lastHb = Number(localStorage.getItem(HB_KEY(t.id)) || 0);
+        if (!lastHb || (now - lastHb) < INACTIVITY_MS) return;
+        const accumulatedMs = Math.max(0, lastHb - (t.startedAt || lastHb));
+        // Freeze: stop timer in DB without logging effort
+        patchRef.current(t.id, { running: false, startedAt: null });
+        localStorage.removeItem(HB_KEY(t.id));
+        setPausedMap(prev => ({ ...prev, [t.id]: accumulatedMs }));
+        names.push(t.task || "task");
+      });
+      if (names.length) setPauseBanner(names);
+    };
+    document.addEventListener("visibilitychange", checkGaps);
+    return () => document.removeEventListener("visibilitychange", checkGaps);
+  }, []);
 
   const rows = useMemo(() =>
     tasks
@@ -100,8 +152,16 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
 
   const completedCount = useMemo(() => tasks.filter(t => t.projectStatus === "Completed").length, [tasks]);
 
-  const startTimer = (id)  => patch(id, { running:true, startedAt:Date.now() });
-  const stopTimer  = (t,h) => stopTimerAndLog(t, h);
+  const startTimer = (id) => {
+    const accMs = pausedMap[id] || 0;
+    // Resume from frozen point by back-dating startedAt by accumulated ms
+    patch(id, { running: true, startedAt: Date.now() - accMs });
+    setPausedMap(prev => { const n = { ...prev }; delete n[id]; return n; });
+  };
+  const stopTimer  = (t,h) => {
+    setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
+    stopTimerAndLog(t, h);
+  };
   const cycleLock = (t) => {
     const s    = t.lockState || "locked";
     const next = s==="unlocked" ? "locked" : "unlocked";
@@ -113,6 +173,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
     if (s === "Completed") {
       if (!t.delivered) updates.delivered = TODAY_ISO;
       if (t.running) stopTimerAndLog(t, (Date.now() - t.startedAt) / 3600000);
+      if (pausedMap[t.id]) setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
     }
     patch(t.id, updates, `Project Status → ${s}`);
   };
@@ -121,6 +182,21 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
 
   return (
     <div className="gx-fade" style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+
+      {/* Auto-pause banner */}
+      {pauseBanner.length > 0 && (
+        <div style={{ background:"#FEF3C7", borderBottom:"1px solid #F59E0B", padding:"10px 24px", display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ fontSize:13, fontWeight:600, color:"#92400E" }}>
+            ⏸ Timer paused while you were away —{" "}
+            <b>{pauseBanner.join(", ")}</b>.{" "}
+            Click <b>Resume</b> on the task to continue.
+          </span>
+          <button onClick={() => setPauseBanner([])}
+            style={{ marginLeft:"auto", background:"none", border:"none", cursor:"pointer", color:"#92400E", fontSize:20, fontWeight:700, lineHeight:1, padding:"0 4px" }}>
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Page title */}
       <div style={{ padding:"18px 24px 10px" }}>
@@ -308,6 +384,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Timer — disabled on completed tasks */}
                     <td className="gx-td">
                       <TimerCell running={t.running} startedAt={t.startedAt} disabled={isCompleted}
+                        paused={!!pausedMap[t.id]} pausedMs={pausedMap[t.id] || 0}
                         onStart={isCompleted ? undefined : ()=>startTimer(t.id)}
                         onStop={(h)=>stopTimer(t,h)}/>
                     </td>
