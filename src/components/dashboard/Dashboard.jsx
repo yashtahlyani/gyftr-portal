@@ -74,8 +74,14 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const effTotal   = (t)=>effEntries(t).reduce((a,e)=>a+(Number(e.hours)||0),0);
 
   const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
+  // When every known property/type is selected (the default), treat it as "no
+  // filter" so tasks carrying a renamed/legacy property or type value are still
+  // counted. Otherwise their Completed/etc. counts silently drift from the board.
+  const allProps = selProps.length === PROPERTIES.length;
+  const allTypes = selTypes.length === TASK_TYPES.length;
   const filtered = useMemo(()=>tasks.filter(t=>
-    selProps.includes(t.property) && tArr(t).some(ty=>selTypes.includes(ty)) &&
+    (allProps || selProps.includes(t.property)) &&
+    (allTypes || tArr(t).some(ty=>selTypes.includes(ty))) &&
     fStatus.includes(t.projectStatus) && (fOwner==="All"||t.owner===fOwner) && taskInRange(t)
   ),[tasks,selProps,selTypes,fStatus,fOwner,range]);
 

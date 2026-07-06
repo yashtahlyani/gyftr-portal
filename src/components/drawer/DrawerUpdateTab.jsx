@@ -3,20 +3,26 @@ import React, { useRef } from "react";
 import { Plus, X, CalendarDays } from "lucide-react";
 import { Caret } from "../ui";
 import { OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
-import { teamOf, fmtDate, TODAY_ISO } from "../../utils";
+import { teamOf, fmtDate, fmtHrs, TODAY_ISO } from "../../utils";
 
 export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isManager }) {
   const u = task.update || {};
   const descRef = useRef(null);
 
   const onProjectStatusChange = (s) => {
-    const updates = { projectStatus: s };
-    if (s === "Completed") {
-      if (!task.delivered) updates.delivered = TODAY_ISO;
-      if (task.running) {
-        stopTimerAndLog(task, (Date.now() - task.startedAt) / 3600000);
-      }
+    if (s === "Completed" && task.running) {
+      const runningMs = Date.now() - (task.startedAt || Date.now());
+      const ok = window.confirm(
+        `The timer for "${task.task}" is still running ` +
+        `(${fmtHrs(runningMs / 3600000)} not yet logged).\n\n` +
+        `OK — stop the timer, log this time, and mark the task Completed.\n` +
+        `Cancel — leave the task unchanged so you can review the timer first.`
+      );
+      if (!ok) return;
+      stopTimerAndLog(task, runningMs / 3600000);
     }
+    const updates = { projectStatus: s };
+    if (s === "Completed" && !task.delivered) updates.delivered = TODAY_ISO;
     patch(task.id, updates, `Project Status → ${s}`);
   };
 
@@ -68,7 +74,7 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
           <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Assigned To</label>
           <div style={{ position:"relative" }}>
             <select className="gx-input" style={{ appearance:"none", cursor:"pointer", paddingRight:30 }}
-              value={task.owner||""} onChange={e=>patch(task.id,{ owner:e.target.value })}>
+              value={task.owner||""} onChange={e=>patch(task.id,{ owner:e.target.value },`Reassigned to ${e.target.value}`)}>
               <option value="">Select…</option>
               {OWNERS.map(o=><option key={o}>{o}</option>)}
             </select><Caret/>
@@ -109,7 +115,7 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
       <div>
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Delivered Date</label>
         <input className="gx-input" type="date" value={task.delivered||""}
-          onChange={e=>patch(task.id,{ delivered:e.target.value })}/>
+          onChange={e=>patch(task.id,{ delivered:e.target.value },`Delivered date → ${e.target.value||"cleared"}`)}/>
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Fill in when the work has actually gone live.</div>
       </div>
 
