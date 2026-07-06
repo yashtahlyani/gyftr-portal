@@ -94,11 +94,31 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
     catch { return {}; }
   });
 
-  // Keep refs so the visibilitychange handler never closes over stale values
-  const tasksRef    = useRef(tasks);
-  const patchRef    = useRef(patch);
+  // Keep refs so the idle/visibility handlers never close over stale values
+  const tasksRef        = useRef(tasks);
+  const patchRef        = useRef(patch);
+  const lastActivityRef = useRef(Date.now());
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { patchRef.current = patch;  }, [patch]);
+
+  // Track real user activity so we can detect "walked away" inactivity even
+  // when the tab stays visible the whole time.
+  useEffect(() => {
+    const mark = () => { lastActivityRef.current = Date.now(); };
+    const evts = ["mousemove", "mousedown", "keydown", "wheel", "scroll", "touchstart"];
+    evts.forEach(e => window.addEventListener(e, mark, { passive: true }));
+    return () => evts.forEach(e => window.removeEventListener(e, mark));
+  }, []);
+
+  // Freeze a running timer WITHOUT logging effort: credit only the active time
+  // up to `activeUntil`, then park the rest in pausedMap so it can be resumed.
+  const freezeTimer = (t, activeUntil) => {
+    const accumulatedMs = Math.max(0, activeUntil - (t.startedAt || activeUntil));
+    patchRef.current(t.id, { running: false, startedAt: null });
+    localStorage.removeItem(HB_KEY(t.id));
+    setPausedMap(prev => ({ ...prev, [t.id]: accumulatedMs }));
+    return t.task || "task";
+  };
 
   // Persist pausedMap to localStorage whenever it changes
   useEffect(() => {
@@ -114,7 +134,29 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
     return () => clearInterval(id);
   }, [tasks]);
 
-  // On visibility restore, freeze any timer whose heartbeat gap > 20 min
+  // Primary detector: every 30s, freeze any running timer with no user activity
+  // for 20 min. Works while the tab stays visible AND catches sleep/wake (the
+  // interval simply resumes and sees the large activity gap). This is what makes
+  // "auto-pause on inactivity" actually work — the old visibility-only check
+  // never fired when the user just walked away with the tab open.
+  useEffect(() => {
+    const checkIdle = () => {
+      const now      = Date.now();
+      const idleFor  = now - lastActivityRef.current;
+      if (idleFor < INACTIVITY_MS) return;
+      const names = [];
+      tasksRef.current.filter(t => t.running).forEach(t => {
+        // Credit active time up to the last known activity, not up to now.
+        names.push(freezeTimer(t, lastActivityRef.current));
+      });
+      if (names.length) setPauseBanner(names);
+    };
+    const id = setInterval(checkIdle, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Safety net: when a hidden/closed tab is restored, freeze any timer whose
+  // heartbeat gap exceeded 20 min (covers the case where JS wasn't running).
   useEffect(() => {
     const checkGaps = () => {
       if (document.hidden) return;
@@ -123,12 +165,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
       tasksRef.current.filter(t => t.running).forEach(t => {
         const lastHb = Number(localStorage.getItem(HB_KEY(t.id)) || 0);
         if (!lastHb || (now - lastHb) < INACTIVITY_MS) return;
-        const accumulatedMs = Math.max(0, lastHb - (t.startedAt || lastHb));
-        // Freeze: stop timer in DB without logging effort
-        patchRef.current(t.id, { running: false, startedAt: null });
-        localStorage.removeItem(HB_KEY(t.id));
-        setPausedMap(prev => ({ ...prev, [t.id]: accumulatedMs }));
-        names.push(t.task || "task");
+        names.push(freezeTimer(t, lastHb));
       });
       if (names.length) setPauseBanner(names);
     };
@@ -165,17 +202,34 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
   const cycleLock = (t) => {
     const s    = t.lockState || "locked";
     const next = s==="unlocked" ? "locked" : "unlocked";
-    patch(t.id, { lockState: next });
+    patch(t.id, { lockState: next }, `Promise date ${next==="locked"?"locked":"unlocked"}`);
   };
 
   const handleComplete = (t, s) => {
-    const updates = { projectStatus: s };
     if (s === "Completed") {
+      // A task is either running, paused, or neither — never both.
+      const runningMs = t.running ? Date.now() - (t.startedAt || Date.now()) : 0;
+      const pausedMs  = pausedMap[t.id] || 0;
+      const pendingMs = runningMs + pausedMs;
+      if (pendingMs > 0) {
+        // Snigdha's requested behaviour: don't silently swallow a live timer —
+        // ask first, then auto-stop and log the time before completing.
+        const ok = window.confirm(
+          `The timer for "${t.task}" is still ${t.running ? "running" : "paused"} ` +
+          `(${fmtHrs(pendingMs / 3600000)} not yet logged).\n\n` +
+          `OK — stop the timer, log this time, and mark the task Completed.\n` +
+          `Cancel — leave the task unchanged so you can review the timer first.`
+        );
+        if (!ok) return;
+        stopTimerAndLog(t, pendingMs / 3600000);
+        if (pausedMs) setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
+      }
+      const updates = { projectStatus: s };
       if (!t.delivered) updates.delivered = TODAY_ISO;
-      if (t.running) stopTimerAndLog(t, (Date.now() - t.startedAt) / 3600000);
-      if (pausedMap[t.id]) setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
+      patch(t.id, updates, `Project Status → ${s}`);
+      return;
     }
-    patch(t.id, updates, `Project Status → ${s}`);
+    patch(t.id, { projectStatus: s }, `Project Status → ${s}`);
   };
 
   const pendingRequests = tasks.filter(t => t.lockState==="requested").length;
@@ -291,7 +345,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Property */}
                     <td className="gx-td" style={{ position:"relative" }}>
                       {isManager
-                        ? <select className="gx-sel" style={{ fontWeight:700, color:PROP_COLOR[t.property] }} value={t.property} onChange={e=>patch(t.id,{property:e.target.value})}>
+                        ? <select className="gx-sel" style={{ fontWeight:700, color:PROP_COLOR[t.property] }} value={t.property} onChange={e=>patch(t.id,{property:e.target.value},`Property → ${e.target.value}`)}>
                             {PROPERTIES.map(p=><option key={p}>{p}</option>)}
                           </select>
                         : <span style={{ fontWeight:700, color:PROP_COLOR[t.property] }}>{t.property}</span>}
@@ -302,7 +356,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                       <div style={{ display:"flex", alignItems:"center", gap:4 }}>
                         <div style={{ flex:1, minWidth:0 }}>
                           {isManager
-                            ? <TextCell value={t.task} bold onCommit={v=>patch(t.id,{task:v})} placeholder="Task name…"/>
+                            ? <TextCell value={t.task} bold onCommit={v=>patch(t.id,{task:v},"Edited task name")} placeholder="Task name…"/>
                             : <span style={{ fontWeight:600, color:"var(--ink)" }}>{t.task}</span>}
                         </div>
                         <button className="gx-btn" title="Open update panel"
@@ -316,7 +370,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Task type */}
                     <td className="gx-td" style={{ position:"relative" }}>
                       {isManager
-                        ? <TypeSelect value={t.type} onChange={v => patch(t.id, { type: v })}/>
+                        ? <TypeSelect value={t.type} onChange={v => patch(t.id, { type: v }, "Edited task type")}/>
                         : <span style={{ fontSize:12 }}>{toTypeArr(t.type).join(", ") || "—"}</span>}
                     </td>
 
@@ -325,7 +379,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                       <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                         <Avatar name={t.owner} size={20}/>
                         {isManager
-                          ? <select className="gx-sel" value={t.owner||""} onChange={e=>patch(t.id,{owner:e.target.value})}>
+                          ? <select className="gx-sel" value={t.owner||""} onChange={e=>patch(t.id,{owner:e.target.value},`Reassigned to ${e.target.value}`)}>
                               {OWNERS.map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.owner}</span>}
@@ -337,7 +391,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                       <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                         <Avatar name={t.businessOwner} size={20}/>
                         {isManager
-                          ? <select className="gx-sel" value={t.businessOwner||""} onChange={e=>patch(t.id,{businessOwner:e.target.value})}>
+                          ? <select className="gx-sel" value={t.businessOwner||""} onChange={e=>patch(t.id,{businessOwner:e.target.value},`Business owner → ${e.target.value}`)}>
                               {BUSINESS_OWNERS.map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.businessOwner}</span>}
@@ -366,7 +420,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Promise date */}
                     <td className="gx-td">
                       {isManager && canEditPromise
-                        ? <DateCell value={t.due} onCommit={v=>patch(t.id,{due:v})}/>
+                        ? <DateCell value={t.due} onCommit={v=>patch(t.id,{due:v},`Promise date → ${v||"cleared"}`)}/>
                         : <div style={{ display:"flex", alignItems:"center", gap:4 }}>
                             <span className="gx-mono" style={{ fontSize:12, fontWeight:600, color:t.due?"var(--ink)":"#94a59b" }}>{t.due?fmtDate(t.due):"—"}</span>
                             {lockS==="requested" && <span style={{ fontSize:9.5, fontWeight:700, color:"#C42424" }}>req</span>}
@@ -410,7 +464,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Priority */}
                     <td className="gx-td">
                       <ChipMenu trigger={<PriorityChip p={t.priority}/>} options={PRIORITY_LIST} value={t.priority} width={150}
-                        onPick={p=>patch(t.id,{priority:p})}
+                        onPick={p=>patch(t.id,{priority:p},`Priority → ${p}`)}
                         render={p=><><Flag size={12} fill={PRIORITY[p].dot} color={PRIORITY[p].dot}/>{p}</>}/>
                     </td>
 
