@@ -74,7 +74,12 @@ function TypeSelect({ value, onChange }) {
   );
 }
 
-const INACTIVITY_MS = 20 * 60 * 1000; // 20 min
+// Test hatch: append ?idletest=<seconds> to the URL to shorten the inactivity
+// window (e.g. ?idletest=30 → pause after 30s idle, check every 5s). Only the
+// person using that URL is affected; everyone else keeps the normal 20 min.
+const IDLE_TEST_SEC = Number(new URLSearchParams(window.location.search).get("idletest"));
+const INACTIVITY_MS = IDLE_TEST_SEC > 0 ? IDLE_TEST_SEC * 1000 : 20 * 60 * 1000;
+const IDLE_CHECK_MS = IDLE_TEST_SEC > 0 ? 5_000 : 30_000;
 const HB_KEY = (id) => `gyftr_hb_${id}`;
 
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
@@ -151,7 +156,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
       });
       if (names.length) setPauseBanner(names);
     };
-    const id = setInterval(checkIdle, 30_000);
+    const id = setInterval(checkIdle, IDLE_CHECK_MS);
     return () => clearInterval(id);
   }, []);
 
