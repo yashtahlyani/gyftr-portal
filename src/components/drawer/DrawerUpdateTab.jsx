@@ -119,21 +119,37 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Fill in when the work has actually gone live.</div>
       </div>
 
-      {/* Comment / Description — monospace so pasted tables render cleanly; Tab inserts a tab character */}
+      {/* Manager's note / brief — only the manager can edit; team reads it and replies via Comments */}
       <div>
-        <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"block", marginBottom:6 }}>Comment / Description</label>
-        <textarea
-          ref={descRef}
-          className="gx-input"
-          rows={6}
-          style={{ resize:"vertical", fontFamily:"var(--font-m)", whiteSpace:"pre-wrap", fontSize:12.5 }}
-          placeholder={"Notes, brief, or reason for any delay…\n\nTip: Tab key inserts a tab for table formatting."}
-          value={u.description||""}
-          onChange={e=>patchUpdate(task.id,{ description:e.target.value })}
-          onKeyDown={handleDescKeyDown}
-        />
+        <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+          Note / Description
+          {!isManager && <span style={{ fontSize:10, fontWeight:700, padding:"1px 7px", borderRadius:6, background:"#EAF1EB", color:"#586860", textTransform:"none" }}>Manager only</span>}
+        </label>
+        {isManager ? (
+          <textarea
+            ref={descRef}
+            className="gx-input"
+            rows={6}
+            style={{ resize:"vertical", fontFamily:"var(--font-m)", whiteSpace:"pre-wrap", fontSize:12.5 }}
+            placeholder={"Notes, brief, or reason for any delay…\n\nTip: Tab key inserts a tab for table formatting."}
+            value={u.description||""}
+            onChange={e=>patchUpdate(task.id,{ description:e.target.value })}
+            onKeyDown={handleDescKeyDown}
+          />
+        ) : (
+          <div
+            className="gx-input"
+            style={{ minHeight:120, fontFamily:"var(--font-m)", whiteSpace:"pre-wrap", fontSize:12.5, background:"#F4F8F4", color:"var(--ink)", overflowY:"auto" }}
+          >
+            {u.description
+              ? u.description
+              : <span style={{ color:"var(--ink-soft)", fontStyle:"italic" }}>No note added by the manager yet.</span>}
+          </div>
+        )}
         <div style={{ fontSize:10.5, color:"var(--ink-soft)", marginTop:4 }}>
-          Tip: paste tab-separated content (from Excel/Sheets) — spacing is preserved.
+          {isManager
+            ? "Tip: paste tab-separated content (from Excel/Sheets) — spacing is preserved."
+            : "Only the manager can edit this note. Use the Comments tab to respond."}
         </div>
       </div>
 
