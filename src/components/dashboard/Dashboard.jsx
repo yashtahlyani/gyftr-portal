@@ -69,7 +69,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const hasFilter  = range!=="all"||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
   const clearAll   = ()=>{ setRange("all"); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes(TASK_TYPES.slice()); setDrill(null); };
   const inRange    = (d)=> d?((!from||d>=from)&&(!to||d<=to)):false;
-  const taskInRange= (t)=>{ if(!from&&!to) return true; const s=t.requested||t.due,e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>inRange(x.date)); return (!to||(s||e)<=to)&&(!from||(e||s)>=from); };
+  const taskInRange= (t)=>{ if(!from&&!to) return true; if(t.createdAt&&inRange(t.createdAt)) return true; const s=t.requested||t.due,e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>inRange(x.date)); return (!to||(s||e)<=to)&&(!from||(e||s)>=from); };
   const effEntries = (t)=>(from||to)?(t.effort||[]).filter(e=>inRange(e.date)):(t.effort||[]);
   const effTotal   = (t)=>effEntries(t).reduce((a,e)=>a+(Number(e.hours)||0),0);
 
@@ -382,7 +382,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
             ) : <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>No effort logged in current selection.</div>}
           </div>
           <TypeLegend
-            types={TASK_TYPES.filter(t=>filtered.some(task=>task.type===t))}
+            types={TASK_TYPES.filter(t=>filtered.some(task=>tArr(task).includes(t)))}
             sel={chartTypes}
             onToggle={toggleChart}
             onAll={()=>setChartTypes(chartTypes.length===TASK_TYPES.length?[]:TASK_TYPES.slice())}
@@ -411,7 +411,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
             ) : <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>No effort logged in current selection.</div>}
           </div>
           <TypeLegend
-            types={TASK_TYPES.filter(t=>filtered.some(task=>task.type===t))}
+            types={TASK_TYPES.filter(t=>filtered.some(task=>tArr(task).includes(t)))}
             sel={chartTypes}
             onToggle={toggleChart}
             onAll={()=>setChartTypes(chartTypes.length===TASK_TYPES.length?[]:TASK_TYPES.slice())}

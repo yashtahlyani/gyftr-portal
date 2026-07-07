@@ -14,6 +14,7 @@ export function useTaskStore(currentUser) {
       .from("tasks")
       .select("*, effort_entries(*), comments(*), audit_log(*), task_files(*)")
       .order("updated_at", { ascending: false });
+    if (error) console.error("fetchTasks error:", error.message);
     if (!error && data) setTasks(data.map(dbToTask));
     setLoading(false);
   }, []);
@@ -25,6 +26,7 @@ export function useTaskStore(currentUser) {
       .on("postgres_changes", { event:"*", schema:"public", table:"tasks"          }, fetchTasks)
       .on("postgres_changes", { event:"*", schema:"public", table:"effort_entries" }, fetchTasks)
       .on("postgres_changes", { event:"*", schema:"public", table:"comments"       }, fetchTasks)
+      .on("postgres_changes", { event:"*", schema:"public", table:"audit_log"      }, fetchTasks)
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [fetchTasks]);

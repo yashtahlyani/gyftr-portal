@@ -29,7 +29,7 @@ export function Admin({ tasks, openDrawer }) {
   const rFrom = rangeDays ? plusDays(TODAY_ISO,-rangeDays) : "";
   const rTo   = rangeDays ? TODAY_ISO : "";
   const rInRange     = (d)=> d ? ((!rFrom||d>=rFrom)&&(!rTo||d<=rTo)) : false;
-  const taskInRange  = (t)=>{ if(!rFrom&&!rTo) return true; const s=t.requested||t.due, e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>rInRange(x.date)); return (!rTo||(s||e)<=rTo)&&(!rFrom||(e||s)>=rFrom); };
+  const taskInRange  = (t)=>{ if(!rFrom&&!rTo) return true; if(t.createdAt&&rInRange(t.createdAt)) return true; const s=t.requested||t.due, e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>rInRange(x.date)); return (!rTo||(s||e)<=rTo)&&(!rFrom||(e||s)>=rFrom); };
   const effInRange   = (eff=[]) => (range==="all" ? eff : eff.filter(e=>rInRange(e.date)));
   const totalEffortR = (eff=[]) => effInRange(eff).reduce((s,e)=>s+(Number(e.hours)||0),0);
 

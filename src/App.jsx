@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { LayoutDashboard, Table2, Settings, Plus, LogOut } from "lucide-react";
 
 import { STYLES }          from "./lib/styles";
-import { TEAM_OF }         from "./constants";
+import { TEAM_OF, USER_BY_EMAIL } from "./constants";
 
 import { useAuth }         from "./hooks/useAuth";
 import { useTaskStore }    from "./hooks/useTaskStore";
@@ -30,7 +30,7 @@ export default function App() {
   const [openTab,    setOpenTab]    = useState("Update");
   const [createOpen, setCreateOpen] = useState(false);
 
-  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, addTask, deleteTask } = useTaskStore(currentUser);
+  const { tasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, addTask, deleteTask } = useTaskStore(displayName || currentUser);
 
   useEffect(() => { if (authed) fetchTasks(); }, [authed, fetchTasks]);
 
@@ -45,8 +45,12 @@ export default function App() {
   const isManager    = role === "manager";
   const visibleTasks = useMemo(() => {
     if (isManager) return tasks;
-    return tasks.filter(t => t.owner?.toLowerCase() === displayName?.toLowerCase());
-  }, [isManager, tasks, displayName]);
+    const nameFromEmail = USER_BY_EMAIL[currentUser?.toLowerCase()] || "";
+    return tasks.filter(t => {
+      const owner = t.owner?.toLowerCase() || "";
+      return owner === displayName?.toLowerCase() || owner === nameFromEmail.toLowerCase();
+    });
+  }, [isManager, tasks, displayName, currentUser]);
 
   useEffect(() => { if (!isManager && view==="admin") setView("dashboard"); }, [isManager, view]);
 
