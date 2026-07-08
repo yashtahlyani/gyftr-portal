@@ -21,11 +21,12 @@ const fmtH = (h) => {
   return `${hrs}h ${mins}m`;
 };
 
-// Tasks with no type assigned go into this bucket on the charts
+// Tasks with no type AND no property go into this catch-all bucket
 const UNTYPED       = "General";
 const UNTYPED_COLOR = "#94a59b";
-const tColor = (t) => t === UNTYPED ? UNTYPED_COLOR : typeColor(t);
-const tArr   = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
+// Color priority: PROP_COLOR first (property-bucketed entries), then TYPE_PALETTE, then grey
+const tColor = (b) => b === UNTYPED ? UNTYPED_COLOR : (PROP_COLOR[b] || typeColor(b));
+const tArr   = (t) => Array.isArray(t.type) ? t.type.filter(Boolean) : t.type ? [t.type] : [];
 
 /* ── Type legend ── */
 function TypeLegend({ types, sel, onToggle, onAll }) {
@@ -215,12 +216,14 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return m;
   }, [tasks]);
 
-  // Attribute each task's effort to its first matching task type.
-  // Falls back to UNTYPED ("General") so effort is NEVER silently dropped —
-  // tasks with old/unknown types still show under General rather than vanishing.
+  // Attribute each task's effort:
+  //   1. First matching task type (from chartTypes)
+  //   2. Fallback → task's property (so untyped work still shows with a meaningful color)
+  //   3. Last resort → UNTYPED ("General") grey
   const bucketOf = (t) => {
     const matching = tArr(t).filter(ty => ty && chartTypes.includes(ty));
-    return matching.length > 0 ? matching[0] : UNTYPED;
+    if (matching.length > 0) return matching[0];
+    return t.property || UNTYPED;
   };
 
   // Union all three effort sources so no path can hide data:
@@ -336,20 +339,26 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     }
   });
 
-  const dateData        = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
-  const allBuckets      = [...TASK_TYPES, UNTYPED];
-  const typesInDateData = allBuckets.filter(b => chartTypes.includes(b) && dateData.some(d => (d[b] || 0) > 0));
+  const dateData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
+  const propData = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
 
-  const propData        = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
-  const typesInPropData = allBuckets.filter(b => chartTypes.includes(b) && propData.some(d => (d[b] || 0) > 0));
+  // Collect all bucket keys actually present in the data (task types + any property fallbacks)
+  const keysOf = (rows) => {
+    const s = new Set();
+    rows.forEach(d => Object.keys(d).forEach(k => { if (k !== 'date' && k !== 'name') s.add(k); }));
+    return [...s];
+  };
+  const typesInDateData = keysOf(dateData);
+  const typesInPropData = keysOf(propData).filter(b => propData.some(d => (d[b] || 0) > 0));
 
-  // Legend shows types present in effortSource (or filtered tasks when no date)
+  // Legend: task types with data + properties used as fallback buckets + UNTYPED if needed
   const legendTypes = [
     ...TASK_TYPES.filter(ty =>
       effortSource.some(e => { const t = taskLookup[e.task_id]; return t && tArr(t).includes(ty); }) ||
       filtered.some(t => tArr(t).includes(ty))
     ),
-    ...(filtered.some(t => tArr(t).length === 0) ? [UNTYPED] : []),
+    ...typesInDateData.filter(b => !TASK_TYPES.includes(b) && b !== UNTYPED), // property fallback buckets
+    ...(filtered.some(t => tArr(t).length === 0 && !t.property) ? [UNTYPED] : []),
   ];
 
   /* ── Handlers ── */
