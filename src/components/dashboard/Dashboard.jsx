@@ -2,12 +2,12 @@
 import React, { useState, useMemo } from "react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  ResponsiveContainer, Tooltip, Legend,
+  ResponsiveContainer, Tooltip,
 } from "recharts";
-import { Plus, ChevronDown, Clock } from "lucide-react";
-import { Avatar, StatusChip, Caret } from "../ui";
-import { PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, RANGE_OPTS } from "../../constants";
-import { typeColor, fmtDate, fmtHrs, agingDays, totalEffort, taskNo, plusDays, TODAY_ISO } from "../../utils";
+import { Plus, ChevronDown, Clock, CalendarDays, X } from "lucide-react";
+import { Avatar, StatusChip } from "../ui";
+import { PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR } from "../../constants";
+import { typeColor, fmtDate, fmtHrs, agingDays, totalEffort, taskNo, TODAY_ISO } from "../../utils";
 
 /* ── Helpers ── */
 const fmtH = (h) => {
@@ -20,6 +20,11 @@ const fmtH = (h) => {
   return `${hrs}h ${mins}m`;
 };
 const yTickH = (v) => `${v}h`;
+
+// Effort of tasks without a task type goes into this bucket
+const UNTYPED = "General";
+const UNTYPED_COLOR = "#94a59b";
+const typeColorSafe = (t) => t === UNTYPED ? UNTYPED_COLOR : typeColor(t);
 
 /* ── Task-type legend item ── */
 function TypeLegend({ types, sel, onToggle, onAll }) {
@@ -37,7 +42,7 @@ function TypeLegend({ types, sel, onToggle, onAll }) {
             <div key={t} onClick={()=>onToggle(t)}
               style={{ display:"flex", alignItems:"center", gap:8, padding:"3px 5px", borderRadius:6, cursor:"pointer", background:on?"#F1F6F1":"transparent" }}>
               <span style={{ width:11, height:11, borderRadius:3, flex:"none",
-                background:on?typeColor(t):"transparent",
+                background:on?typeColorSafe(t):"transparent",
                 border:on?"none":"1.5px solid #c4cfc7" }}/>
               <span style={{ fontSize:11.5, fontWeight:600, color:on?"var(--ink)":"var(--ink-soft)",
                 whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{t}</span>
@@ -53,125 +58,201 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const [drill,          setDrill]          = useState(null);
   const [selProps,       setSelProps]       = useState(PROPERTIES.slice());
   const [selTypes,       setSelTypes]       = useState(TASK_TYPES.slice());
-  const [chartTypes,     setChartTypes]     = useState(TASK_TYPES.slice()); // for hour charts
+  const [chartTypes,     setChartTypes]     = useState([...TASK_TYPES, UNTYPED]);
   const [propMenuOpen,   setPropMenuOpen]   = useState(false);
   const [typeMenuOpen,   setTypeMenuOpen]   = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [range,          setRange]          = useState("all");
-  const [customFrom,     setCustomFrom]     = useState("");
-  const [customTo,       setCustomTo]       = useState("");
+  const [dateFrom,       setDateFrom]       = useState(TODAY_ISO); // default: today
+  const [dateTo,         setDateTo]         = useState(TODAY_ISO); // default: today
   const [fStatus,        setFStatus]        = useState(STATUS_LIST.slice());
   const [fOwner,         setFOwner]         = useState("All");
 
-  const rangeDays = RANGE_OPTS.find(r=>r.k===range)?.days;
-  const YESTERDAY = plusDays(TODAY_ISO, -1);
-  const from = range === "custom"    ? customFrom
-             : range === "yesterday" ? YESTERDAY
-             : rangeDays             ? plusDays(TODAY_ISO, -rangeDays) : "";
-  const to   = range === "custom"    ? customTo
-             : range === "yesterday" ? YESTERDAY
-             : rangeDays             ? TODAY_ISO : "";
+  const from = dateFrom;
+  const to   = dateTo;
 
-  const owners     = useMemo(()=>Array.from(new Set(tasks.map(t=>t.owner).filter(Boolean))),[tasks]);
-  const hasFilter  = range!=="all"||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
-  const clearAll   = ()=>{ setRange("all"); setCustomFrom(""); setCustomTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes(TASK_TYPES.slice()); setDrill(null); };
-  const inRange    = (d)=> d?((!from||d>=from)&&(!to||d<=to)):false;
-  const taskInRange= (t)=>{ if(!from&&!to) return true; if(t.createdAt&&inRange(t.createdAt)) return true; const s=t.requested||t.due,e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>inRange(x.date)); return (!to||(s||e)<=to)&&(!from||(e||s)>=from); };
-  const effEntries = (t)=>(from||to)?(t.effort||[]).filter(e=>inRange(e.date)):(t.effort||[]);
-  const effTotal   = (t)=>effEntries(t).reduce((a,e)=>a+(Number(e.hours)||0),0);
+  const owners    = useMemo(()=>Array.from(new Set(tasks.map(t=>t.owner).filter(Boolean))),[tasks]);
+  const hasFilter = dateFrom||dateTo||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
+
+  const clearAll  = () => {
+    setDateFrom(""); setDateTo("");
+    setFStatus(STATUS_LIST.slice()); setFOwner("All");
+    setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice());
+    setChartTypes([...TASK_TYPES, UNTYPED]); setDrill(null);
+  };
+  const setToday  = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
+
+  // True if effort entry date falls within the selected range
+  const inRange   = (d) => d ? ((!from || d >= from) && (!to || d <= to)) : false;
+
+  // Include a task in the filtered set if:
+  // - no date range set → always include
+  // - date range set → include if it has at least one effort entry in range
+  const taskInRange = (t) => {
+    if (!from && !to) return true;
+    return (t.effort || []).some(e => inRange(e.date));
+  };
+
+  // Return effort entries for a task filtered to the selected date range
+  const effEntries = (t) => (from || to)
+    ? (t.effort || []).filter(e => inRange(e.date))
+    : (t.effort || []);
+
+  const effTotal  = (t) => effEntries(t).reduce((a,e) => a + (Number(e.hours) || 0), 0);
 
   const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
   const allProps = selProps.length === PROPERTIES.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
-  const filtered = useMemo(()=>tasks.filter(t=>
-    (allProps || selProps.includes(t.property)) &&
-    (allTypes || tArr(t).some(ty=>selTypes.includes(ty))) &&
-    fStatus.includes(t.projectStatus) && (fOwner==="All"||t.owner===fOwner) && taskInRange(t)
-  ),[tasks,selProps,selTypes,fStatus,fOwner,range,customFrom,customTo]);
 
-  const isActive  = (t)=>STATUS[t.projectStatus]?.group==="active";
-  const isHold    = (t)=>STATUS[t.projectStatus]?.group==="hold";
-  const isDone    = (t)=>t.projectStatus==="Completed";
-  const isOverdue = (t)=>agingDays(t)>0;
-  const totalAll  = filtered.reduce((s,t)=>s+effTotal(t),0);
+  const filtered = useMemo(() => tasks.filter(t =>
+    (allProps || selProps.includes(t.property)) &&
+    (allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0) &&
+    fStatus.includes(t.projectStatus) &&
+    (fOwner === "All" || t.owner === fOwner) &&
+    taskInRange(t)
+  ), [tasks, selProps, selTypes, fStatus, fOwner, dateFrom, dateTo]);
+
+  const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
+  const isHold    = (t) => STATUS[t.projectStatus]?.group === "hold";
+  const isDone    = (t) => t.projectStatus === "Completed";
+  const isOverdue = (t) => agingDays(t) > 0;
+  const totalAll  = filtered.reduce((s,t) => s + effTotal(t), 0);
 
   const cards = [
-    { k:"total",   label:"Total Tasks",  value:filtered.length,                  sub:"click to see all",       rows:()=>filtered },
+    { k:"total",   label:"Total Tasks",  value:filtered.length,                   sub:"click to see all",       rows:()=>filtered },
     { k:"active",  label:"In Progress",  value:filtered.filter(isActive).length,  c:"#2D7FF9", sub:"active stages",    rows:()=>filtered.filter(isActive)  },
     { k:"hold",    label:"On Hold",      value:filtered.filter(isHold).length,    c:"#E11D74", sub:"hold / deferred",  rows:()=>filtered.filter(isHold)    },
     { k:"done",    label:"Completed",    value:filtered.filter(isDone).length,    c:"#15803D", sub:"closed out",       rows:()=>filtered.filter(isDone)    },
     { k:"overdue", label:"Overdue",      value:filtered.filter(isOverdue).length, c:"#F5A623", sub:"past due",         rows:()=>filtered.filter(isOverdue) },
     { k:"effort",  label:"Total Effort", value:fmtH(totalAll),                   c:"#067A8C", sub:"hours · click for split", rows:()=>[...filtered].sort((a,b)=>effTotal(b)-effTotal(a)) },
   ];
-  const active    = cards.find(c=>c.k===drill);
+  const active    = cards.find(c => c.k === drill);
   const drillRows = active ? active.rows() : [];
 
   /* ── Status pie ── */
   const statusData = PROJECT_STATUS_LIST
-    .map(s=>({ name:s, value:filtered.filter(t=>t.projectStatus===s).length, fill:STATUS[s].dot }))
-    .filter(d=>d.value>0);
+    .map(s => ({ name:s, value:filtered.filter(t=>t.projectStatus===s).length, fill:STATUS[s].dot }))
+    .filter(d => d.value > 0);
 
   /* ── Overdue by property bar ── */
   const overdueByProp = PROPERTIES
-    .filter(p=>selProps.includes(p))
-    .map(p=>({ name:p, count:filtered.filter(t=>t.property===p&&agingDays(t)>0).length, fill:PROP_COLOR[p] }))
-    .filter(d=>d.count>0);
+    .filter(p => selProps.includes(p))
+    .map(p => ({ name:p, count:filtered.filter(t=>t.property===p&&agingDays(t)>0).length, fill:PROP_COLOR[p] }))
+    .filter(d => d.count > 0);
 
-  /* ── Hours per DATE · stacked by task type ── */
-  const dateMap = {};
-  filtered.forEach(t=>{
-    const ty = tArr(t)[0];
-    if (!ty || !chartTypes.includes(ty)) return;
-    effEntries(t).forEach(e=>{
-      if (!dateMap[e.date]) dateMap[e.date] = { date:e.date };
-      dateMap[e.date][ty] = (dateMap[e.date][ty]||0) + (Number(e.hours)||0);
+  /* ── Chart data builder ──
+     Hours are attributed to the task's first matching type.
+     Tasks with no type assigned go into the UNTYPED ("General") bucket so
+     their hours are NEVER silently dropped from the charts.                  */
+  const buildChartData = (keyFn) => {
+    const map = {};
+    filtered.forEach(t => {
+      const taskTypes = tArr(t).filter(ty => chartTypes.includes(ty));
+      let bucket;
+      if (tArr(t).length === 0) {
+        // Task has no type at all → General bucket (always visible)
+        bucket = UNTYPED;
+      } else if (taskTypes.length > 0) {
+        // Task has types and at least one matches the chart filter
+        bucket = taskTypes[0];
+      } else {
+        // Task has types but all are filtered out by the user → skip
+        return;
+      }
+      const key = keyFn(t);
+      if (!key) return;
+      if (!map[key]) map[key] = { _key: key };
+      map[key][bucket] = (map[key][bucket] || 0) + effTotal(t);
+    });
+    return map;
+  };
+
+  /* Hours per DATE */
+  const dateMap  = buildChartData(t => {
+    // Need per-entry attribution, not per-task total
+    return null; // handled separately below
+  });
+  // Re-build date chart with per-entry granularity
+  const dateMapReal = {};
+  filtered.forEach(t => {
+    const taskTypes = tArr(t).filter(ty => chartTypes.includes(ty));
+    let bucket;
+    if (tArr(t).length === 0)        bucket = UNTYPED;
+    else if (taskTypes.length > 0)   bucket = taskTypes[0];
+    else                             return;
+    effEntries(t).forEach(e => {
+      if (!dateMapReal[e.date]) dateMapReal[e.date] = { date: e.date };
+      dateMapReal[e.date][bucket] = (dateMapReal[e.date][bucket] || 0) + (Number(e.hours) || 0);
     });
   });
-  const dateData        = Object.values(dateMap).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>({ ...d, name:fmtDate(d.date) }));
-  const typesInDateData = TASK_TYPES.filter(t=>chartTypes.includes(t) && dateData.some(d=>d[t]>0));
+  const dateData = Object.values(dateMapReal)
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(d => ({ ...d, name: fmtDate(d.date) }));
 
-  /* ── Hours per PROPERTY · stacked by task type ── */
-  const propMap = {};
-  filtered.forEach(t=>{
-    const ty = tArr(t)[0];
-    if (!ty || !chartTypes.includes(ty)) return;
+  // All type buckets that actually appear in date chart data
+  const allChartBuckets = [...TASK_TYPES, UNTYPED];
+  const typesInDateData = allChartBuckets.filter(t =>
+    chartTypes.includes(t) && dateData.some(d => (d[t] || 0) > 0)
+  );
+
+  /* Hours per PROPERTY */
+  const propMapReal = {};
+  filtered.forEach(t => {
+    const taskTypes = tArr(t).filter(ty => chartTypes.includes(ty));
+    let bucket;
+    if (tArr(t).length === 0)        bucket = UNTYPED;
+    else if (taskTypes.length > 0)   bucket = taskTypes[0];
+    else                             return;
     const p = t.property;
-    if (!propMap[p]) propMap[p] = { name:p };
-    effEntries(t).forEach(e=>{
-      propMap[p][ty] = (propMap[p][ty]||0) + (Number(e.hours)||0);
+    if (!p) return;
+    if (!propMapReal[p]) propMapReal[p] = { name: p };
+    effEntries(t).forEach(e => {
+      propMapReal[p][bucket] = (propMapReal[p][bucket] || 0) + (Number(e.hours) || 0);
     });
   });
-  const propHoursData    = PROPERTIES.filter(p=>selProps.includes(p) && propMap[p]).map(p=>propMap[p]);
-  const typesInPropHours = TASK_TYPES.filter(t=>chartTypes.includes(t) && propHoursData.some(d=>(d[t]||0)>0));
+  const propHoursData    = PROPERTIES.filter(p => selProps.includes(p) && propMapReal[p]).map(p => propMapReal[p]);
+  const typesInPropHours = allChartBuckets.filter(t =>
+    chartTypes.includes(t) && propHoursData.some(d => (d[t] || 0) > 0)
+  );
 
-  const toggleType  = (t)=>setSelTypes(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]);
-  const toggleChart = (t)=>setChartTypes(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]);
-  const toggleProp  = (p)=>setSelProps(prev=>prev.includes(p)?prev.filter(x=>x!==p):[...prev,p]);
-  const toggleStat  = (s)=>setFStatus(prev=>prev.includes(s)?prev.filter(x=>x!==s):[...prev,s]);
+  // All buckets visible in the legend (types that appear in filtered tasks)
+  const legendTypes = [
+    ...TASK_TYPES.filter(t => filtered.some(task => tArr(task).includes(t))),
+    ...(filtered.some(t => tArr(t).length === 0) ? [UNTYPED] : []),
+  ];
+
+  const toggleType  = (t) => setSelTypes(prev => prev.includes(t) ? prev.filter(x=>x!==t) : [...prev,t]);
+  const toggleChart = (t) => setChartTypes(prev => prev.includes(t) ? prev.filter(x=>x!==t) : [...prev,t]);
+  const toggleProp  = (p) => setSelProps(prev => prev.includes(p) ? prev.filter(x=>x!==p) : [...prev,p]);
+  const toggleStat  = (s) => setFStatus(prev => prev.includes(s) ? prev.filter(x=>x!==s) : [...prev,s]);
 
   /* ── Custom tooltip for hour charts ── */
   const HourTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
-    const total = payload.reduce((s,p)=>s+(p.value||0),0);
+    const total = payload.reduce((s,p) => s + (p.value || 0), 0);
     return (
       <div style={{ background:"#fff", border:"1px solid var(--line)", borderRadius:10, padding:"10px 14px", fontSize:12, boxShadow:"0 8px 24px -8px rgba(0,0,0,.2)" }}>
         <div style={{ fontWeight:700, marginBottom:6 }}>{label}</div>
-        {payload.filter(p=>p.value>0).reverse().map(p=>(
+        {payload.filter(p => p.value > 0).reverse().map(p => (
           <div key={p.dataKey} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
             <span style={{ width:10, height:10, borderRadius:3, background:p.fill, flex:"none" }}/>
             <span style={{ color:"var(--ink-soft)" }}>{p.dataKey}:</span>
             <span style={{ fontWeight:700 }}>{fmtH(p.value)}</span>
           </div>
         ))}
-        {payload.length>1 && <div style={{ borderTop:"1px solid var(--line)", marginTop:6, paddingTop:6, fontWeight:700 }}>Total: {fmtH(total)}</div>}
+        {payload.length > 1 && <div style={{ borderTop:"1px solid var(--line)", marginTop:6, paddingTop:6, fontWeight:700 }}>Total: {fmtH(total)}</div>}
       </div>
     );
   };
 
-  /* ── Prop X-axis tick in brand color ── */
   const PropTick = ({ x, y, payload }) => (
     <text x={x} y={y+14} textAnchor="middle" fontSize={13} fontWeight={800} fill={PROP_COLOR[payload.value]||"#586860"}>{payload.value}</text>
   );
+
+  const dateLabel = !from && !to ? "All time"
+    : from === to                ? `${fmtDate(from)}`
+    : from && to                 ? `${fmtDate(from)} → ${fmtDate(to)}`
+    : from                       ? `From ${fmtDate(from)}`
+    :                              `Until ${fmtDate(to)}`;
 
   return (
     <div className="gx-fade" style={{ padding:"24px 30px", overflowY:"auto", height:"100%" }}>
@@ -180,13 +261,51 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:14 }}>
         <div>
           <h1 className="gx-disp" style={{ fontSize:26, fontWeight:700, margin:0 }}>Dashboard &amp; Reporting</h1>
-          <p style={{ color:"var(--ink-soft)", fontSize:13.5, margin:"4px 0 0" }}>Filter by property, task type, status, owner or date range.</p>
+          <p style={{ color:"var(--ink-soft)", fontSize:13.5, margin:"4px 0 0" }}>
+            Showing: <b style={{ color:"var(--pop-deep)" }}>{dateLabel}</b>
+            {from === TODAY_ISO && to === TODAY_ISO && <span style={{ marginLeft:8, fontSize:12, background:"#CDEBD6", color:"#0F6B33", padding:"2px 8px", borderRadius:6, fontWeight:700 }}>Today · CEO view</span>}
+          </p>
         </div>
         {canCreate && <button className="gx-btn gx-btn-dark" onClick={onCreate}><Plus size={16}/> Create task</button>}
       </div>
 
       {/* Filter bar */}
       <div className="gx-card" style={{ padding:"12px 14px", marginBottom:14, display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
+
+        {/* ── Date pickers ── */}
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"#F4F8F4", border:"1px solid var(--line)", borderRadius:9, padding:"6px 10px" }}>
+          <CalendarDays size={14} style={{ color:"var(--pop-deep)", flexShrink:0 }}/>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            title="From date"
+            style={{ border:"none", background:"transparent", fontSize:13, fontWeight:600, color:"var(--ink)", cursor:"pointer", outline:"none", minWidth:120 }}
+          />
+          <span style={{ fontSize:12, color:"var(--ink-soft)", fontWeight:600 }}>→</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            title="To date"
+            style={{ border:"none", background:"transparent", fontSize:13, fontWeight:600, color:"var(--ink)", cursor:"pointer", outline:"none", minWidth:120 }}
+          />
+          {(dateFrom || dateTo) && (
+            <span title="Clear dates" onClick={() => { setDateFrom(""); setDateTo(""); }}
+              style={{ cursor:"pointer", color:"#94a59b", display:"flex", alignItems:"center" }}>
+              <X size={13}/>
+            </span>
+          )}
+        </div>
+
+        {/* Quick: Today */}
+        <button className="gx-btn gx-btn-ghost"
+          onClick={setToday}
+          style={{ border:"1px solid var(--line)", padding:"7px 11px", fontSize:12.5, fontWeight:700,
+            background: (dateFrom===TODAY_ISO&&dateTo===TODAY_ISO) ? "var(--pop-soft)" : "transparent",
+            color:      (dateFrom===TODAY_ISO&&dateTo===TODAY_ISO) ? "var(--pop-deep)" : "var(--ink-soft)" }}>
+          Today
+        </button>
 
         {/* Property filter */}
         <div style={{ position:"relative" }}>
@@ -234,22 +353,6 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
           </>)}
         </div>
 
-        {/* Date range */}
-        <div style={{ position:"relative" }}>
-          <select className="gx-input" style={{ paddingRight:30, appearance:"none", cursor:"pointer", fontWeight:600, minWidth:160 }} value={range} onChange={e=>setRange(e.target.value)}>
-            {RANGE_OPTS.map(r=><option key={r.k} value={r.k}>{r.label}</option>)}
-          </select><Caret/>
-        </div>
-
-        {/* Custom date pickers */}
-        {range === "custom" && (<>
-          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }}
-            value={customFrom} onChange={e=>setCustomFrom(e.target.value)} title="From date"/>
-          <span style={{ fontSize:12, color:"var(--ink-soft)", fontWeight:600 }}>→</span>
-          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }}
-            value={customTo} onChange={e=>setCustomTo(e.target.value)} title="To date"/>
-        </>)}
-
         {/* Status filter */}
         <div style={{ position:"relative" }}>
           <button className="gx-btn gx-btn-ghost" onClick={()=>setStatusMenuOpen(o=>!o)} style={{ border:"1px solid var(--line)", padding:"7px 11px", fontSize:12.5 }}>
@@ -278,7 +381,8 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
           <select className="gx-input" style={{ paddingRight:30, appearance:"none", cursor:"pointer", fontWeight:600, minWidth:140 }} value={fOwner} onChange={e=>setFOwner(e.target.value)}>
             <option value="All">Owner: All</option>
             {owners.map(o=><option key={o}>{o}</option>)}
-          </select><Caret/>
+          </select>
+          <span style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", pointerEvents:"none", fontSize:10, color:"var(--ink-soft)" }}>▼</span>
         </div>
 
         {hasFilter && <button className="gx-btn gx-btn-ghost" onClick={clearAll} style={{ fontSize:12, color:"#C42424", border:"1px solid #F3C2C2" }}>Clear all</button>}
@@ -330,7 +434,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
         {/* Status pie */}
         <div className="gx-card" style={{ padding:"18px 20px" }}>
           <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Tasks by status</h3>
-          <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 8px" }}>Project status distribution</p>
+          <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 8px" }}>Project status distribution · {dateLabel}</p>
           {statusData.length ? (
             <div style={{ display:"flex", gap:16, alignItems:"center" }}>
               <ResponsiveContainer width={180} height={200}>
@@ -377,10 +481,10 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       {/* ── Hours per date · stacked by task type ── */}
       <div className="gx-card" style={{ padding:"18px 20px", marginBottom:14 }}>
         <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Total hours per date · by task type</h3>
-        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort logged over time — toggle the task types on the right to focus the stack</p>
+        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort logged over time — toggle task types on the right · {dateLabel}</p>
         <div style={{ display:"flex", gap:16 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            {dateData.length ? (
+            {dateData.length && typesInDateData.length ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={dateData} barCategoryGap="22%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#EEF4EF" vertical={false}/>
@@ -388,17 +492,21 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
                   <YAxis tickFormatter={yTickH} tick={{ fontSize:11, fill:"#94a59b" }} axisLine={false} tickLine={false}/>
                   <Tooltip content={<HourTooltip/>}/>
                   {typesInDateData.map((t,i,arr)=>(
-                    <Bar key={t} dataKey={t} stackId="d" fill={typeColor(t)} radius={i===arr.length-1?[5,5,0,0]:[0,0,0,0]}/>
+                    <Bar key={t} dataKey={t} stackId="d" fill={typeColorSafe(t)} radius={i===arr.length-1?[5,5,0,0]:[0,0,0,0]}/>
                   ))}
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>No effort logged in current selection.</div>}
+            ) : (
+              <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>
+                No effort logged in current selection.
+              </div>
+            )}
           </div>
           <TypeLegend
-            types={TASK_TYPES.filter(t=>filtered.some(task=>tArr(task).includes(t)))}
+            types={[...legendTypes]}
             sel={chartTypes}
             onToggle={toggleChart}
-            onAll={()=>setChartTypes(chartTypes.length===TASK_TYPES.length?[]:TASK_TYPES.slice())}
+            onAll={()=>setChartTypes(chartTypes.length===([...TASK_TYPES,UNTYPED]).length?[]:([...TASK_TYPES,UNTYPED]))}
           />
         </div>
       </div>
@@ -406,10 +514,10 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       {/* ── Hours per property · stacked by task type ── */}
       <div className="gx-card" style={{ padding:"18px 20px", marginBottom:14 }}>
         <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Total hours per property · by task type</h3>
-        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort by property — toggle the task types on the right to focus the stack</p>
+        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort by property — toggle task types on the right · {dateLabel}</p>
         <div style={{ display:"flex", gap:16 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            {propHoursData.length ? (
+            {propHoursData.length && typesInPropHours.length ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={propHoursData} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#EEF4EF" vertical={false}/>
@@ -417,17 +525,21 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
                   <YAxis tickFormatter={yTickH} tick={{ fontSize:11, fill:"#94a59b" }} axisLine={false} tickLine={false}/>
                   <Tooltip content={<HourTooltip/>}/>
                   {typesInPropHours.map((t,i,arr)=>(
-                    <Bar key={t} dataKey={t} stackId="ph" fill={typeColor(t)} radius={i===arr.length-1?[5,5,0,0]:[0,0,0,0]}/>
+                    <Bar key={t} dataKey={t} stackId="ph" fill={typeColorSafe(t)} radius={i===arr.length-1?[5,5,0,0]:[0,0,0,0]}/>
                   ))}
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>No effort logged in current selection.</div>}
+            ) : (
+              <div style={{ height:260, display:"grid", placeItems:"center", fontSize:13, color:"var(--ink-soft)" }}>
+                No effort logged in current selection.
+              </div>
+            )}
           </div>
           <TypeLegend
-            types={TASK_TYPES.filter(t=>filtered.some(task=>tArr(task).includes(t)))}
+            types={[...legendTypes]}
             sel={chartTypes}
             onToggle={toggleChart}
-            onAll={()=>setChartTypes(chartTypes.length===TASK_TYPES.length?[]:TASK_TYPES.slice())}
+            onAll={()=>setChartTypes(chartTypes.length===([...TASK_TYPES,UNTYPED]).length?[]:([...TASK_TYPES,UNTYPED]))}
           />
         </div>
       </div>
