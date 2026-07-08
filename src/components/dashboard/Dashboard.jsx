@@ -313,6 +313,20 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     fStatus.includes(t.projectStatus) &&
     (fOwner === "All" || t.owner === fOwner);
 
+  // Distribute hours across all of a task's types in propMap; split equally to avoid double-counting
+  const addToPropMap = (property, types, hours) => {
+    if (!property) return;
+    if (!propMap[property]) propMap[property] = { name: property };
+    if (types.length === 0) {
+      propMap[property][UNTYPED] = (propMap[property][UNTYPED] || 0) + hours;
+    } else {
+      const share = hours / types.length;
+      types.forEach(ty => {
+        propMap[property][ty] = (propMap[property][ty] || 0) + share;
+      });
+    }
+  };
+
   effortSource.forEach(e => {
     if (!e.date || !(Number(e.hours) > 0)) return;
     const t = taskLookup[e.task_id];
@@ -322,12 +336,8 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     const propBucket = t.property || UNTYPED;
     if (!dateMap[e.date]) dateMap[e.date] = { date: e.date };
     dateMap[e.date][propBucket] = (dateMap[e.date][propBucket] || 0) + h;
-    // Chart 2: by type within property
-    if (t.property) {
-      const typeBucket = bucketOf(t);
-      if (!propMap[t.property]) propMap[t.property] = { name: t.property };
-      propMap[t.property][typeBucket] = (propMap[t.property][typeBucket] || 0) + h;
-    }
+    // Chart 2: hours split across all task types; untyped tasks → UNTYPED
+    addToPropMap(t.property, tArr(t), h);
   });
 
   // Add live running timer hours
@@ -336,14 +346,10 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     if (!(live > 0.008)) return;
     const sd = timerStartDate(t);
     if (!sd) return;
-    const propBucket  = t.property || UNTYPED;
-    const typeBucket  = bucketOf(t);
+    const propBucket = t.property || UNTYPED;
     if (!dateMap[sd]) dateMap[sd] = { date: sd };
     dateMap[sd][propBucket] = (dateMap[sd][propBucket] || 0) + live;
-    if (t.property) {
-      if (!propMap[t.property]) propMap[t.property] = { name: t.property };
-      propMap[t.property][typeBucket] = (propMap[t.property][typeBucket] || 0) + live;
-    }
+    addToPropMap(t.property, tArr(t), live);
   });
 
   const dateData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
