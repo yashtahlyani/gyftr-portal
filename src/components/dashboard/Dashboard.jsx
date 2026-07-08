@@ -125,6 +125,13 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return map;
   }, [rawEntries]);
 
+  const owners = useMemo(() => Array.from(new Set(tasks.map(t => t.owner).filter(Boolean))), [tasks]);
+
+  /* ── Date helpers — defined early so useMemos below can reference them ── */
+  const hasDate = !!(dateFrom || dateTo);
+
+  const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+
   // Read from localStorage cache — available even when Supabase SELECT is blocked
   const cachedEntries = useMemo(() => {
     try {
@@ -144,13 +151,6 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     });
     return map;
   }, [cachedEntries]);
-
-  const owners = useMemo(() => Array.from(new Set(tasks.map(t => t.owner).filter(Boolean))), [tasks]);
-
-  /* ── Date helpers ── */
-  const hasDate = !!(dateFrom || dateTo);
-
-  const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
 
   // Merge all three sources: direct DB query, localStorage cache, and task-join data.
   // Take whichever has the most entries — covers RLS blocks, optimistic updates, and cross-device sync.
@@ -260,15 +260,30 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return null;
   };
 
-  // Effort source: rawEntries (date-filtered by DB) is most reliable.
-  // Fall back to joined task effort when rawEntries is empty (RLS block).
-  const effortSource = rawEntries.length > 0
-    ? rawEntries
-    : filtered.flatMap(t =>
-        (t.effort || [])
-          .filter(e => !hasDate || inRange((e.date || "").slice(0, 10)))
-          .map(e => ({ task_id: t.id, date: e.date, hours: e.hours }))
-      );
+  // Union all three effort sources to avoid any single source missing data:
+  // 1. rawEntries — direct date-filtered DB query (may be blocked by RLS for some roles)
+  // 2. cachedEntries — localStorage writes from this device (survives RLS SELECT blocks)
+  // 3. joined t.effort — entries fetched via task join (different RLS code path)
+  // Deduplicate by task_id+date+hours so a stopped timer doesn't count twice.
+  const effortSource = useMemo(() => {
+    const seen = new Set();
+    const result = [];
+    const add = (task_id, date, hours, status) => {
+      const k = `${task_id}|${date}|${hours}`;
+      if (seen.has(k)) return;
+      seen.add(k);
+      result.push({ task_id, date, hours, status });
+    };
+    rawEntries.forEach(e => add(e.task_id, e.date, e.hours, e.status));
+    cachedEntries.forEach(e => add(e.task_id, e.date, e.hours, e.status));
+    filtered.forEach(t =>
+      (t.effort || [])
+        .filter(e => !hasDate || inRange((e.date || "").slice(0, 10)))
+        .forEach(e => add(t.id, e.date, e.hours, e.status))
+    );
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawEntries, cachedEntries, filtered, hasDate, dateFrom, dateTo]);
 
   // Hours per date + hours per property — built directly from effortSource
   const dateMap = {};
