@@ -109,13 +109,19 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   // Hours from committed entries
   const committedHours = (t) => committedEntries(t).reduce((s, e) => s + (Number(e.hours) || 0), 0);
 
-  // Live hours from a currently-running timer (not yet committed to DB)
-  // Always included regardless of date filter — it's happening right now
-  const liveHours = (t) => (t.running && t.startedAt)
-    ? Math.max(0, (Date.now() - t.startedAt) / 3600000)
-    : 0;
+  // Live hours from a running timer — only counted when the timer start date is inside the filter range
+  const timerStartDate = (t) => {
+    if (!t.startedAt) return null;
+    const _s = new Date(t.startedAt);
+    return `${_s.getFullYear()}-${String(_s.getMonth()+1).padStart(2,"0")}-${String(_s.getDate()).padStart(2,"0")}`;
+  };
+  const liveHours = (t) => {
+    if (!t.running || !t.startedAt) return 0;
+    if (hasDate && !inRange(timerStartDate(t))) return 0;
+    return Math.max(0, (Date.now() - t.startedAt) / 3600000);
+  };
 
-  // Total = committed + live (so dashboard always shows something while timer runs)
+  // Total = committed + live
   const totalHours = (t) => committedHours(t) + liveHours(t);
 
   /* ── Base filter: property / type / status / owner — NO date on task cards ── */
@@ -135,18 +141,15 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const isDone    = (t) => t.projectStatus === "Completed";
   const isOverdue = (t) => agingDays(t) > 0;
 
-  const totalCommitted = filtered.reduce((s, t) => s + committedHours(t), 0);
-  const totalLive      = filtered.reduce((s, t) => s + liveHours(t), 0);
-  const grandTotal     = totalCommitted + totalLive;
-  const anyRunning     = filtered.some(t => t.running);
+  const grandTotal = filtered.reduce((s, t) => s + totalHours(t), 0);
 
   const cards = [
-    { k:"total",   label:"Total Tasks",  value:filtered.length,                  sub:"click to see all",            rows:() => filtered },
-    { k:"active",  label:"In Progress",  value:filtered.filter(isActive).length, c:"#2D7FF9", sub:"active stages",  rows:() => filtered.filter(isActive)  },
-    { k:"hold",    label:"On Hold",      value:filtered.filter(isHold).length,   c:"#E11D74", sub:"hold/deferred",  rows:() => filtered.filter(isHold)    },
-    { k:"done",    label:"Completed",    value:filtered.filter(isDone).length,   c:"#15803D", sub:"closed out",     rows:() => filtered.filter(isDone)    },
-    { k:"overdue", label:"Overdue",      value:filtered.filter(isOverdue).length,c:"#F5A623", sub:"past due",       rows:() => filtered.filter(isOverdue) },
-    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                 c:"#067A8C", sub: anyRunning ? "incl. live timer ●" : hasDate ? "in date range" : "all time", rows:() => [...filtered].sort((a, b) => totalHours(b) - totalHours(a)) },
+    { k:"total",   label:"Total Tasks",  value:filtered.length,                  sub:"click to see all",         rows:() => filtered },
+    { k:"active",  label:"In Progress",  value:filtered.filter(isActive).length, c:"#2D7FF9", sub:"active",      rows:() => filtered.filter(isActive)  },
+    { k:"hold",    label:"On Hold",      value:filtered.filter(isHold).length,   c:"#E11D74", sub:"hold",        rows:() => filtered.filter(isHold)    },
+    { k:"done",    label:"Completed",    value:filtered.filter(isDone).length,   c:"#15803D", sub:"closed",      rows:() => filtered.filter(isDone)    },
+    { k:"overdue", label:"Overdue",      value:filtered.filter(isOverdue).length,c:"#F5A623", sub:"past due",    rows:() => filtered.filter(isOverdue) },
+    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                 c:"#067A8C", sub:hasDate ? dateLabel : "all time", rows:() => [...filtered].sort((a, b) => totalHours(b) - totalHours(a)) },
   ];
 
   const active    = cards.find(c => c.k === drill);
@@ -170,22 +173,32 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return null; // has types, all filtered out by user
   };
 
-  // Hours per date — stacked by task type
+  // Hours per date — committed entries + live running timer hours
   const dateMap = {};
   filtered.forEach(t => {
     const bucket = bucketOf(t);
     if (!bucket) return;
+    // committed
     committedEntries(t).forEach(e => {
       if (!e.date || !(Number(e.hours) > 0)) return;
       if (!dateMap[e.date]) dateMap[e.date] = { date: e.date };
       dateMap[e.date][bucket] = (dateMap[e.date][bucket] || 0) + Number(e.hours);
     });
+    // live (timer running now)
+    const live = liveHours(t);
+    if (live > 0.008) { // >~30 seconds
+      const sd = timerStartDate(t);
+      if (sd) {
+        if (!dateMap[sd]) dateMap[sd] = { date: sd };
+        dateMap[sd][bucket] = (dateMap[sd][bucket] || 0) + live;
+      }
+    }
   });
   const dateData         = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
   const allBuckets       = [...TASK_TYPES, UNTYPED];
   const typesInDateData  = allBuckets.filter(b => chartTypes.includes(b) && dateData.some(d => (d[b] || 0) > 0));
 
-  // Hours per property — stacked by task type
+  // Hours per property — committed + live
   const propMap = {};
   filtered.forEach(t => {
     const bucket = bucketOf(t);
@@ -195,6 +208,10 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       if (!(Number(e.hours) > 0)) return;
       propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + Number(e.hours);
     });
+    const live = liveHours(t);
+    if (live > 0.008) {
+      propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + live;
+    }
   });
   const propData         = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
   const typesInPropData  = allBuckets.filter(b => chartTypes.includes(b) && propData.some(d => (d[b] || 0) > 0));
@@ -234,7 +251,6 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
           <h1 className="gx-disp" style={{ fontSize:26, fontWeight:700, margin:0 }}>Dashboard &amp; Reporting</h1>
           <p style={{ color:"var(--ink-soft)", fontSize:13, margin:"4px 0 0" }}>
             Showing effort for: <b style={{ color:"var(--pop-deep)" }}>{dateLabel}</b>
-            {anyRunning && <span style={{ marginLeft:8, fontSize:12, background:"#FDE2E2", color:"#C42424", padding:"2px 8px", borderRadius:6, fontWeight:700 }}>● Live timer running</span>}
           </p>
         </div>
         {canCreate && <button className="gx-btn gx-btn-dark" onClick={onCreate}><Plus size={16}/> Create task</button>}
@@ -361,14 +377,6 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
         ))}
       </div>
 
-      {/* Live hours note */}
-      {anyRunning && totalLive > 0.01 && (
-        <div style={{ marginBottom:12, fontSize:12.5, color:"#C42424", fontWeight:600, background:"#FFF4F4", border:"1px solid #F3C2C2", borderRadius:9, padding:"8px 14px", display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:14 }}>●</span>
-          <span>{fmtH(totalLive)} currently live (timer running) — included in Total Effort. Committed hours will appear in charts once timers are stopped.</span>
-        </div>
-      )}
-
       {/* Drill table */}
       {drill && (
         <div className="gx-card gx-fade" style={{ marginBottom:14, overflow:"hidden" }}>
@@ -447,10 +455,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       {/* ── Hours per date ── */}
       <div className="gx-card" style={{ padding:"18px 20px", marginBottom:14 }}>
         <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Hours logged per day · by task type</h3>
-        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>
-          Committed effort · {dateLabel}
-          {anyRunning && <span style={{ marginLeft:6, color:"#C42424" }}>— live timer hours appear once stopped</span>}
-        </p>
+        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort by day · {dateLabel}</p>
         <div style={{ display:"flex", gap:16 }}>
           <div style={{ flex:1, minWidth:0 }}>
             {dateData.length > 0 && typesInDateData.length > 0 ? (
@@ -467,9 +472,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </ResponsiveContainer>
             ) : (
               <div style={{ height:260, display:"grid", placeItems:"center", textAlign:"center", color:"var(--ink-soft)", fontSize:13 }}>
-                {anyRunning
-                  ? "Timer is running — chart will show hours once the timer is stopped."
-                  : "No committed effort entries found for the selected date range."}
+                No effort logged for {dateLabel}.
               </div>
             )}
           </div>
@@ -481,7 +484,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       {/* ── Hours per property ── */}
       <div className="gx-card" style={{ padding:"18px 20px", marginBottom:14 }}>
         <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Hours per property · by task type</h3>
-        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Committed effort by property · {dateLabel}</p>
+        <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort by property · {dateLabel}</p>
         <div style={{ display:"flex", gap:16 }}>
           <div style={{ flex:1, minWidth:0 }}>
             {propData.length > 0 && typesInPropData.length > 0 ? (
@@ -498,9 +501,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </ResponsiveContainer>
             ) : (
               <div style={{ height:260, display:"grid", placeItems:"center", textAlign:"center", color:"var(--ink-soft)", fontSize:13 }}>
-                {anyRunning
-                  ? "Timer is running — chart will show hours once the timer is stopped."
-                  : "No committed effort entries found for the selected date range."}
+                No effort logged for {dateLabel}.
               </div>
             )}
           </div>
