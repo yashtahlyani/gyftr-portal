@@ -1,13 +1,15 @@
 /* ─── components/drawer/DrawerUpdateTab.jsx ─── */
-import React, { useRef } from "react";
-import { Plus, X, CalendarDays } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Plus, X, CalendarDays, Link } from "lucide-react";
 import { Caret } from "../ui";
 import { OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
 import { teamOf, fmtDate, fmtHrs, TODAY_ISO } from "../../utils";
 
-export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isManager }) {
+export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, addComment, isManager }) {
   const u = task.update || {};
   const descRef = useRef(null);
+  const [linkUrl,  setLinkUrl]  = useState("");
+  const [linkDesc, setLinkDesc] = useState("");
 
   const onProjectStatusChange = (s) => {
     if (s === "Completed" && task.running) {
@@ -51,6 +53,15 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         }
       });
     }
+  };
+
+  const submitLink = () => {
+    const url = linkUrl.trim();
+    if (!url) return;
+    const body = linkDesc.trim() ? `🔗 ${linkDesc.trim()}: ${url}` : `🔗 ${url}`;
+    addComment(task.id, body, "Link");
+    setLinkUrl("");
+    setLinkDesc("");
   };
 
   return (
@@ -119,6 +130,29 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>Fill in when the work has actually gone live.</div>
       </div>
 
+      {/* Submit Update Link — all users */}
+      <div className="gx-card" style={{ padding:14, background:"#F4F8F4", borderColor:"#d4e8d4" }}>
+        <label style={{ fontSize:11, fontWeight:700, color:"var(--pop-deep)", display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+          <Link size={13}/> Submit Update Link
+        </label>
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <input className="gx-input" placeholder="Description (optional) — e.g. Draft doc, Final creative…"
+            value={linkDesc} onChange={e=>setLinkDesc(e.target.value)}/>
+          <div style={{ display:"flex", gap:8 }}>
+            <input className="gx-input" placeholder="Paste URL here — Google Doc, Sheet, Drive link…"
+              value={linkUrl} onChange={e=>setLinkUrl(e.target.value)}
+              onKeyDown={e=>e.key==="Enter"&&submitLink()} style={{ flex:1 }}/>
+            <button className="gx-btn gx-btn-dark" onClick={submitLink} disabled={!linkUrl.trim()}
+              style={{ flexShrink:0, opacity:linkUrl.trim()?1:.45 }}>
+              <Plus size={14}/> Submit
+            </button>
+          </div>
+        </div>
+        <div style={{ fontSize:10.5, color:"var(--ink-soft)", marginTop:6 }}>
+          Submitted links appear in the Comments tab — visible to the whole team.
+        </div>
+      </div>
+
       {/* Manager's note / brief — only the manager can edit; team reads it and replies via Comments */}
       <div>
         <label style={{ fontSize:11, fontWeight:700, color:"var(--ink-soft)", display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
@@ -149,7 +183,7 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, isM
         <div style={{ fontSize:10.5, color:"var(--ink-soft)", marginTop:4 }}>
           {isManager
             ? "Tip: paste tab-separated content (from Excel/Sheets) — spacing is preserved."
-            : "Only the manager can edit this note. Use the Comments tab to respond."}
+            : "Only the manager can edit this note. Use the Comments tab to respond or submit a link above."}
         </div>
       </div>
 

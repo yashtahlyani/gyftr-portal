@@ -58,32 +58,36 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const [typeMenuOpen,   setTypeMenuOpen]   = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [range,          setRange]          = useState("all");
+  const [customFrom,     setCustomFrom]     = useState("");
+  const [customTo,       setCustomTo]       = useState("");
   const [fStatus,        setFStatus]        = useState(STATUS_LIST.slice());
   const [fOwner,         setFOwner]         = useState("All");
 
   const rangeDays = RANGE_OPTS.find(r=>r.k===range)?.days;
-  const from = rangeDays ? plusDays(TODAY_ISO,-rangeDays) : "";
-  const to   = rangeDays ? TODAY_ISO : "";
+  const YESTERDAY = plusDays(TODAY_ISO, -1);
+  const from = range === "custom"    ? customFrom
+             : range === "yesterday" ? YESTERDAY
+             : rangeDays             ? plusDays(TODAY_ISO, -rangeDays) : "";
+  const to   = range === "custom"    ? customTo
+             : range === "yesterday" ? YESTERDAY
+             : rangeDays             ? TODAY_ISO : "";
 
   const owners     = useMemo(()=>Array.from(new Set(tasks.map(t=>t.owner).filter(Boolean))),[tasks]);
   const hasFilter  = range!=="all"||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
-  const clearAll   = ()=>{ setRange("all"); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes(TASK_TYPES.slice()); setDrill(null); };
+  const clearAll   = ()=>{ setRange("all"); setCustomFrom(""); setCustomTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes(TASK_TYPES.slice()); setDrill(null); };
   const inRange    = (d)=> d?((!from||d>=from)&&(!to||d<=to)):false;
   const taskInRange= (t)=>{ if(!from&&!to) return true; if(t.createdAt&&inRange(t.createdAt)) return true; const s=t.requested||t.due,e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>inRange(x.date)); return (!to||(s||e)<=to)&&(!from||(e||s)>=from); };
   const effEntries = (t)=>(from||to)?(t.effort||[]).filter(e=>inRange(e.date)):(t.effort||[]);
   const effTotal   = (t)=>effEntries(t).reduce((a,e)=>a+(Number(e.hours)||0),0);
 
   const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
-  // When every known property/type is selected (the default), treat it as "no
-  // filter" so tasks carrying a renamed/legacy property or type value are still
-  // counted. Otherwise their Completed/etc. counts silently drift from the board.
   const allProps = selProps.length === PROPERTIES.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
   const filtered = useMemo(()=>tasks.filter(t=>
     (allProps || selProps.includes(t.property)) &&
     (allTypes || tArr(t).some(ty=>selTypes.includes(ty))) &&
     fStatus.includes(t.projectStatus) && (fOwner==="All"||t.owner===fOwner) && taskInRange(t)
-  ),[tasks,selProps,selTypes,fStatus,fOwner,range]);
+  ),[tasks,selProps,selTypes,fStatus,fOwner,range,customFrom,customTo]);
 
   const isActive  = (t)=>STATUS[t.projectStatus]?.group==="active";
   const isHold    = (t)=>STATUS[t.projectStatus]?.group==="hold";
@@ -116,7 +120,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   /* ── Hours per DATE · stacked by task type ── */
   const dateMap = {};
   filtered.forEach(t=>{
-    const ty = tArr(t)[0]; // use primary type for chart attribution
+    const ty = tArr(t)[0];
     if (!ty || !chartTypes.includes(ty)) return;
     effEntries(t).forEach(e=>{
       if (!dateMap[e.date]) dateMap[e.date] = { date:e.date };
@@ -192,7 +196,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
           </button>
           {propMenuOpen && (<>
             <div onClick={()=>setPropMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:40 }}/>
-            <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:6, padding:10, width:200, boxShadow:"0 18px 50px -12px rgba(0,0,0,.3)" }}>
+            <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:6, padding:10, width:220, maxHeight:340, overflowY:"auto", boxShadow:"0 18px 50px -12px rgba(0,0,0,.3)" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                 <b style={{ fontSize:11, color:"var(--ink-soft)", textTransform:"uppercase" }}>Property</b>
                 <span style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={()=>setSelProps(selProps.length===PROPERTIES.length?[]:PROPERTIES.slice())}>{selProps.length===PROPERTIES.length?"Clear":"All"}</span>
@@ -236,6 +240,15 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
             {RANGE_OPTS.map(r=><option key={r.k} value={r.k}>{r.label}</option>)}
           </select><Caret/>
         </div>
+
+        {/* Custom date pickers */}
+        {range === "custom" && (<>
+          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }}
+            value={customFrom} onChange={e=>setCustomFrom(e.target.value)} title="From date"/>
+          <span style={{ fontSize:12, color:"var(--ink-soft)", fontWeight:600 }}>→</span>
+          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }}
+            value={customTo} onChange={e=>setCustomTo(e.target.value)} title="To date"/>
+        </>)}
 
         {/* Status filter */}
         <div style={{ position:"relative" }}>

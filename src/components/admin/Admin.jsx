@@ -1,6 +1,6 @@
 /* ─── components/admin/Admin.jsx ─── */
 import React, { useState, useMemo } from "react";
-import { Search, AlertTriangle, Clock, X, FileText } from "lucide-react";
+import { Search, AlertTriangle, Clock, X, FileText, Plus, RefreshCw } from "lucide-react";
 import { Avatar, StatusChip, Caret } from "../ui";
 import { PROPERTIES, PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
 import { PROP_COLOR } from "../../constants";
@@ -24,16 +24,51 @@ export function Admin({ tasks, openDrawer }) {
   const [selProp, setSelProp] = useState(null);
   const [q,       setQ]       = useState("");
   const [range,   setRange]   = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo,   setCustomTo]   = useState("");
 
+  // Property management (custom additions stored in localStorage)
+  const [newPropInput, setNewPropInput] = useState("");
+  const [customProps,  setCustomProps]  = useState(() => {
+    try { return JSON.parse(localStorage.getItem("gyftr_custom_props") || "[]"); }
+    catch { return []; }
+  });
+  const [propMgmtOpen, setPropMgmtOpen] = useState(false);
+
+  const addCustomProp = () => {
+    const name = newPropInput.trim();
+    if (!name) return;
+    if (PROPERTIES.includes(name)) {
+      alert(`"${name}" already exists in the property list.`);
+      return;
+    }
+    const updated = [...customProps, name];
+    localStorage.setItem("gyftr_custom_props", JSON.stringify(updated));
+    setCustomProps(updated);
+    setNewPropInput("");
+  };
+
+  const removeCustomProp = (p) => {
+    const updated = customProps.filter(x => x !== p);
+    localStorage.setItem("gyftr_custom_props", JSON.stringify(updated));
+    setCustomProps(updated);
+  };
+
+  const YESTERDAY = plusDays(TODAY_ISO, -1);
   const rangeDays = RANGE_OPTS.find(r=>r.k===range)?.days;
-  const rFrom = rangeDays ? plusDays(TODAY_ISO,-rangeDays) : "";
-  const rTo   = rangeDays ? TODAY_ISO : "";
+  const rFrom = range === "custom"    ? customFrom
+              : range === "yesterday" ? YESTERDAY
+              : rangeDays             ? plusDays(TODAY_ISO, -rangeDays) : "";
+  const rTo   = range === "custom"    ? customTo
+              : range === "yesterday" ? YESTERDAY
+              : rangeDays             ? TODAY_ISO : "";
+
   const rInRange     = (d)=> d ? ((!rFrom||d>=rFrom)&&(!rTo||d<=rTo)) : false;
   const taskInRange  = (t)=>{ if(!rFrom&&!rTo) return true; if(t.createdAt&&rInRange(t.createdAt)) return true; const s=t.requested||t.due, e=t.expected||t.due; if(!s&&!e) return (t.effort||[]).some(x=>rInRange(x.date)); return (!rTo||(s||e)<=rTo)&&(!rFrom||(e||s)>=rFrom); };
   const effInRange   = (eff=[]) => (range==="all" ? eff : eff.filter(e=>rInRange(e.date)));
   const totalEffortR = (eff=[]) => effInRange(eff).reduce((s,e)=>s+(Number(e.hours)||0),0);
 
-  const rangedTasks = useMemo(()=>tasks.filter(taskInRange),[tasks,range]);
+  const rangedTasks = useMemo(()=>tasks.filter(taskInRange),[tasks,range,customFrom,customTo]);
   const weekFrom    = plusDays(TODAY_ISO,-6);
   const stats = (items)=>({
     total:     items.length,
@@ -89,11 +124,11 @@ export function Admin({ tasks, openDrawer }) {
         {propData.map(({ p, items, total, hours, weekHours, active, hold, done, overdue, topOwners, topTypes })=>{
           const on = selProp===p;
           return (
-            <div key={p} className="gx-card" onClick={()=>setSelProp(on?null:p)} style={{ cursor:"pointer", overflow:"hidden", transition:".15s", outline:on?`2px solid ${PROP_COLOR[p]}`:"2px solid transparent", boxShadow:on?`0 12px 28px -10px ${PROP_COLOR[p]}66`:"none", transform:on?"translateY(-2px)":"none" }}>
-              <div style={{ height:4, background:PROP_COLOR[p] }}/>
+            <div key={p} className="gx-card" onClick={()=>setSelProp(on?null:p)} style={{ cursor:"pointer", overflow:"hidden", transition:".15s", outline:on?`2px solid ${PROP_COLOR[p]||"#7A8A80"}`:"2px solid transparent", boxShadow:on?`0 12px 28px -10px ${(PROP_COLOR[p]||"#7A8A80")}66`:"none", transform:on?"translateY(-2px)":"none" }}>
+              <div style={{ height:4, background:PROP_COLOR[p]||"#7A8A80" }}/>
               <div style={{ padding:"12px 14px 13px" }}>
                 <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between" }}>
-                  <span className="gx-disp" style={{ fontSize:19, fontWeight:800, color:PROP_COLOR[p] }}>{p}</span>
+                  <span className="gx-disp" style={{ fontSize:19, fontWeight:800, color:PROP_COLOR[p]||"#7A8A80" }}>{p}</span>
                   <span style={{ fontSize:11.5, fontWeight:700, color:"var(--ink-soft)" }}>{total} task{total===1?"":"s"}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"baseline", gap:6, margin:"2px 0 9px" }}>
@@ -141,7 +176,7 @@ export function Admin({ tasks, openDrawer }) {
                   <StatusChip status={t.projectStatus}/>
                 </div>
                 <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  <span style={{ color:PROP_COLOR[t.property], fontWeight:700 }}>{t.property}</span> · {t.task}
+                  <span style={{ color:PROP_COLOR[t.property]||"#7A8A80", fontWeight:700 }}>{t.property}</span> · {t.task}
                 </div>
                 <div style={{ fontSize:11.5, color:"var(--ink-soft)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.owner} · {t.update?.description||"no note logged"}</div>
               </div>
@@ -158,16 +193,22 @@ export function Admin({ tasks, openDrawer }) {
           ))}
         </div>
         <div style={{ position:"relative" }}>
-          <select className="gx-input" style={{ paddingRight:30, appearance:"none", cursor:"pointer", fontWeight:600, minWidth:140 }} value={range} onChange={e=>setRange(e.target.value)}>
+          <select className="gx-input" style={{ paddingRight:30, appearance:"none", cursor:"pointer", fontWeight:600, minWidth:160 }} value={range} onChange={e=>setRange(e.target.value)}>
             {RANGE_OPTS.map(r=><option key={r.k} value={r.k}>{r.label}</option>)}
           </select><Caret/>
         </div>
+        {/* Custom date pickers */}
+        {range === "custom" && (<>
+          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }} value={customFrom} onChange={e=>setCustomFrom(e.target.value)} title="From date"/>
+          <span style={{ fontSize:12, color:"var(--ink-soft)", fontWeight:600 }}>→</span>
+          <input type="date" className="gx-input" style={{ fontWeight:600, minWidth:130 }} value={customTo}   onChange={e=>setCustomTo(e.target.value)}   title="To date"/>
+        </>)}
         <div style={{ position:"relative", flex:"0 0 220px" }}>
           <Search size={15} style={{ position:"absolute", left:11, top:10, color:"#94a59b" }}/>
           <input className="gx-input" style={{ paddingLeft:32 }} placeholder={mode==="person"?"Search a person…":mode==="type"?"Search a task type…":"Search a status…"} value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
         {selProp && (
-          <span className="gx-chip" style={{ background:PROP_COLOR[selProp]+"22", color:PROP_COLOR[selProp], fontWeight:700, fontSize:12, padding:"5px 10px" }}>
+          <span className="gx-chip" style={{ background:(PROP_COLOR[selProp]||"#7A8A80")+"22", color:PROP_COLOR[selProp]||"#7A8A80", fontWeight:700, fontSize:12, padding:"5px 10px" }}>
             Scoped to {selProp} <X size={12} style={{ cursor:"pointer", marginLeft:4 }} onClick={e=>{ e.stopPropagation(); setSelProp(null); }}/>
           </span>
         )}
@@ -200,7 +241,7 @@ export function Admin({ tasks, openDrawer }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                   {g.items.slice(0,4).map(t=>(
                     <div key={t.id} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5 }}>
-                      <span style={{ width:7, height:7, borderRadius:99, background:PROP_COLOR[t.property], flex:"none" }}/>
+                      <span style={{ width:7, height:7, borderRadius:99, background:PROP_COLOR[t.property]||"#7A8A80", flex:"none" }}/>
                       <Avatar name={t.owner} size={18}/>
                       <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.task}</span>
                       <span className="gx-mono" style={{ color:"#067A8C", fontWeight:600 }}>{fmtHrs(totalEffortR(t.effort))}</span>
@@ -236,8 +277,8 @@ export function Admin({ tasks, openDrawer }) {
               {propMix.length>0 && (
                 <div style={{ display:"flex", gap:5, marginTop:10, paddingTop:9, borderTop:"1px solid var(--line-soft)", flexWrap:"wrap" }}>
                   {propMix.map(x=>(
-                    <span key={x.p} className="gx-chip" style={{ background:PROP_COLOR[x.p]+"22", color:PROP_COLOR[x.p], fontSize:10.5, padding:"3px 8px", fontWeight:700 }}>
-                      <span style={{ width:6, height:6, borderRadius:99, background:PROP_COLOR[x.p] }}/>{x.p} · {x.n}
+                    <span key={x.p} className="gx-chip" style={{ background:(PROP_COLOR[x.p]||"#7A8A80")+"22", color:PROP_COLOR[x.p]||"#7A8A80", fontSize:10.5, padding:"3px 8px", fontWeight:700 }}>
+                      <span style={{ width:6, height:6, borderRadius:99, background:PROP_COLOR[x.p]||"#7A8A80" }}/>{x.p} · {x.n}
                     </span>
                   ))}
                 </div>
@@ -256,7 +297,7 @@ export function Admin({ tasks, openDrawer }) {
 
       {/* DRILL TABLE */}
       {sel && (
-        <div className="gx-card gx-fade" style={{ overflow:"hidden" }}>
+        <div className="gx-card gx-fade" style={{ overflow:"hidden", marginBottom:16 }}>
           <div style={{ display:"flex", alignItems:"center", gap:9, padding:"12px 16px", borderBottom:"1px solid var(--line)" }}>
             {mode==="person" ? <Avatar name={sel} size={26}/> : mode==="type" ? <span style={{ width:26, height:26, borderRadius:8, background:"#EAF1EB", display:"grid", placeItems:"center" }}><FileText size={14}/></span> : <StatusChip status={sel}/>}
             {mode!=="status" && <b className="gx-disp" style={{ fontSize:15 }}>{sel}</b>}
@@ -271,7 +312,7 @@ export function Admin({ tasks, openDrawer }) {
               {selItems.map(t=>{ const ag=agingDays(t); return (
                 <tr key={t.id} className="gx-row" style={{ cursor:"pointer" }} onClick={()=>openDrawer(t.id,"Update")}>
                   <td className="gx-td gx-mono" style={{ color:"var(--ink-soft)" }}>{taskNo(t)}</td>
-                  <td className="gx-td"><span style={{ fontSize:11, fontWeight:700, color:PROP_COLOR[t.property], background:PROP_COLOR[t.property]+"22", padding:"3px 9px", borderRadius:7 }}>{t.property}</span></td>
+                  <td className="gx-td"><span style={{ fontSize:11, fontWeight:700, color:PROP_COLOR[t.property]||"#7A8A80", background:(PROP_COLOR[t.property]||"#7A8A80")+"22", padding:"3px 9px", borderRadius:7 }}>{t.property}</span></td>
                   <td className="gx-td" style={{ fontWeight:600 }}>{t.task}</td>
                   <td className="gx-td" style={{ fontSize:12.5 }}>{mode==="person" ? <span style={{ fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"3px 9px", borderRadius:7 }}>{(Array.isArray(t.type)?t.type:t.type?[t.type]:[]).join(", ")||"—"}</span> : <span style={{ display:"flex", alignItems:"center", gap:7 }}><Avatar name={t.owner} size={20}/>{t.owner}</span>}</td>
                   <td className="gx-td"><StatusChip status={t.projectStatus}/></td>
@@ -283,6 +324,59 @@ export function Admin({ tasks, openDrawer }) {
           </table>
         </div>
       )}
+
+      {/* ── PROPERTY MANAGEMENT ── */}
+      <div className="gx-card" style={{ marginBottom:16, overflow:"hidden" }}>
+        <div
+          style={{ padding:"12px 16px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom: propMgmtOpen ? "1px solid var(--line)" : "none" }}
+          onClick={() => setPropMgmtOpen(o => !o)}
+        >
+          <b className="gx-disp" style={{ fontSize:14 }}>Manage Properties</b>
+          <span style={{ fontSize:11.5, color:"var(--ink-soft)" }}>{PROPERTIES.length} in list · {customProps.length} custom</span>
+          <span style={{ marginLeft:"auto", fontSize:12, color:"var(--pop)", fontWeight:700 }}>{propMgmtOpen ? "▲ Close" : "▼ Open"}</span>
+        </div>
+        {propMgmtOpen && (
+          <div style={{ padding:"14px 16px" }}>
+            <div style={{ fontSize:12, color:"var(--ink-soft)", marginBottom:12 }}>
+              Add custom properties here. They merge with the built-in list and appear immediately in all dropdowns after you refresh the page.
+            </div>
+
+            {/* Custom prop chips */}
+            {customProps.length > 0 && (
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+                {customProps.map(p => (
+                  <span key={p} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#EAF7F9", border:"1px solid #BEE6EC", padding:"4px 10px", borderRadius:8, fontSize:12.5, fontWeight:600, color:"#067A8C" }}>
+                    {p}
+                    <X size={12} style={{ cursor:"pointer", color:"#94a59b", flexShrink:0 }} onClick={() => removeCustomProp(p)}/>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Add input */}
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <input
+                className="gx-input"
+                placeholder="New property name…"
+                value={newPropInput}
+                onChange={e => setNewPropInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addCustomProp()}
+                style={{ flex:1 }}
+              />
+              <button className="gx-btn gx-btn-dark" onClick={addCustomProp} style={{ flexShrink:0 }}>
+                <Plus size={14}/> Add
+              </button>
+              <button className="gx-btn gx-btn-ghost" onClick={() => window.location.reload()} title="Reload page to apply property list changes everywhere" style={{ flexShrink:0, border:"1px solid var(--line)" }}>
+                <RefreshCw size={14}/> Apply
+              </button>
+            </div>
+            <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:6 }}>
+              Click <b>Apply</b> (page reload) after adding/removing to update the Board and Dashboard dropdowns.
+            </div>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

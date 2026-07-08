@@ -101,7 +101,7 @@ export function EffortAddCell({ onAdd }) {
 }
 
 /* ── TimerCell — live running timer with hr+min display ── */
-export function TimerCell({ running, startedAt, onStart, onStop, disabled, paused, pausedMs }) {
+export function TimerCell({ running, startedAt, onStart, onStop, disabled }) {
   const [, tick] = useState(0);
   useEffect(() => {
     if (!running) return;
@@ -126,19 +126,6 @@ export function TimerCell({ running, startedAt, onStart, onStop, disabled, pause
   if (disabled) {
     return (
       <span style={{ fontSize:11.5, color:"#94a59b", fontStyle:"italic", padding:"6px 2px" }}>Completed</span>
-    );
-  }
-  if (paused) {
-    const sec = Math.max(0, Math.floor((pausedMs || 0) / 1000));
-    const hh  = Math.floor(sec / 3600);
-    const mm  = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-    const ss  = String(sec % 60).padStart(2, "0");
-    const disp = hh > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
-    return (
-      <button className="gx-btn" onClick={onStart}
-        style={{ background:"#FEF3C7", color:"#92400E", padding:"6px 9px", fontSize:12, fontWeight:700, display:"inline-flex", alignItems:"center", gap:6 }}>
-        <Play size={12} fill="#92400E"/> {disp}
-      </button>
     );
   }
   return (

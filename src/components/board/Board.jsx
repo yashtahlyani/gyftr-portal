@@ -93,75 +93,65 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
   const [hideCompleted, setHideCompleted] = useState(true);
   const [pauseBanner,   setPauseBanner]   = useState([]); // task names shown in banner
 
-  // paused state: { [taskId]: accumulatedMs }
-  const [pausedMap, setPausedMap] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("gyftr_paused_map") || "{}"); }
-    catch { return {}; }
-  });
+  // Keep refs so handlers never close over stale values
+  const tasksRef           = useRef(tasks);
+  const patchRef           = useRef(patch);
+  const stopTimerAndLogRef = useRef(stopTimerAndLog);
+  const lastTickRef        = useRef(Date.now()); // tracks when setInterval last fired
+  useEffect(() => { tasksRef.current = tasks;                     }, [tasks]);
+  useEffect(() => { patchRef.current = patch;                     }, [patch]);
+  useEffect(() => { stopTimerAndLogRef.current = stopTimerAndLog; }, [stopTimerAndLog]);
 
-  // Keep refs so the idle/visibility handlers never close over stale values
-  const tasksRef        = useRef(tasks);
-  const patchRef        = useRef(patch);
-  const lastActivityRef = useRef(Date.now());
-  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  useEffect(() => { patchRef.current = patch;  }, [patch]);
-
-  // Track real user activity so we can detect "walked away" inactivity even
-  // when the tab stays visible the whole time.
-  useEffect(() => {
-    const mark = () => { lastActivityRef.current = Date.now(); };
-    const evts = ["mousemove", "mousedown", "keydown", "wheel", "scroll", "touchstart"];
-    evts.forEach(e => window.addEventListener(e, mark, { passive: true }));
-    return () => evts.forEach(e => window.removeEventListener(e, mark));
-  }, []);
-
-  // Freeze a running timer WITHOUT logging effort: credit only the active time
-  // up to `activeUntil`, then park the rest in pausedMap so it can be resumed.
+  // Auto-stop a running timer and log hours to DB.
+  // `activeUntil` is the timestamp up to which the user was actively working
+  // (i.e. when the laptop went to sleep, not when it woke up).
   const freezeTimer = (t, activeUntil) => {
     const accumulatedMs = Math.max(0, activeUntil - (t.startedAt || activeUntil));
-    patchRef.current(t.id, { running: false, startedAt: null });
+    const hours = Math.round((accumulatedMs / 3600000) * 100) / 100;
+    if (hours >= (1 / 60)) {
+      stopTimerAndLogRef.current(t, hours);
+    } else {
+      patchRef.current(t.id, { running: false, startedAt: null });
+    }
     localStorage.removeItem(HB_KEY(t.id));
-    setPausedMap(prev => ({ ...prev, [t.id]: accumulatedMs }));
     return t.task || "task";
   };
 
-  // Persist pausedMap to localStorage whenever it changes
+  // Heartbeat: stamp localStorage every 60 s for every running timer.
+  // Also detects laptop sleep by checking if the interval fired late —
+  // a large gap means JS was frozen (system suspend / sleep screen).
+  // NOTE: we do NOT track mouse/keyboard activity inside the tab.
+  // The timer should only stop when the laptop itself goes to sleep,
+  // not just because the user is working in another application.
   useEffect(() => {
-    localStorage.setItem("gyftr_paused_map", JSON.stringify(pausedMap));
-  }, [pausedMap]);
+    const tick = () => {
+      const now = Date.now();
+      const gap = now - lastTickRef.current;
+      lastTickRef.current = now;
 
-  // Heartbeat: stamp localStorage every 60 s for every running timer
-  useEffect(() => {
-    const write = () =>
-      tasks.filter(t => t.running).forEach(t => localStorage.setItem(HB_KEY(t.id), String(Date.now())));
-    write();
-    const id = setInterval(write, 60_000);
-    return () => clearInterval(id);
-  }, [tasks]);
+      // If JS was frozen for longer than INACTIVITY_MS, the laptop slept.
+      if (gap > INACTIVITY_MS) {
+        const names = [];
+        // Credit time up to when the laptop went to sleep (now - gap),
+        // not up to now (which would include the sleep time itself).
+        tasksRef.current.filter(t => t.running).forEach(t => {
+          names.push(freezeTimer(t, now - gap));
+        });
+        if (names.length) setPauseBanner(names);
+      }
 
-  // Primary detector: every 30s, freeze any running timer with no user activity
-  // for 20 min. Works while the tab stays visible AND catches sleep/wake (the
-  // interval simply resumes and sees the large activity gap). This is what makes
-  // "auto-pause on inactivity" actually work — the old visibility-only check
-  // never fired when the user just walked away with the tab open.
-  useEffect(() => {
-    const checkIdle = () => {
-      const now      = Date.now();
-      const idleFor  = now - lastActivityRef.current;
-      if (idleFor < INACTIVITY_MS) return;
-      const names = [];
-      tasksRef.current.filter(t => t.running).forEach(t => {
-        // Credit active time up to the last known activity, not up to now.
-        names.push(freezeTimer(t, lastActivityRef.current));
-      });
-      if (names.length) setPauseBanner(names);
+      // Write heartbeat so the visibility handler can detect gaps too.
+      tasksRef.current.filter(t => t.running)
+        .forEach(t => localStorage.setItem(HB_KEY(t.id), String(now)));
     };
-    const id = setInterval(checkIdle, IDLE_CHECK_MS);
+    tick();
+    const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, []);
 
-  // Safety net: when a hidden/closed tab is restored, freeze any timer whose
-  // heartbeat gap exceeded 20 min (covers the case where JS wasn't running).
+  // Safety net: when the tab becomes visible again (or the window regains focus),
+  // check if the heartbeat gap exceeded INACTIVITY_MS.  This catches the case
+  // where the browser was minimised / another tab was active during the sleep.
   useEffect(() => {
     const checkGaps = () => {
       if (document.hidden) return;
@@ -175,7 +165,11 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
       if (names.length) setPauseBanner(names);
     };
     document.addEventListener("visibilitychange", checkGaps);
-    return () => document.removeEventListener("visibilitychange", checkGaps);
+    window.addEventListener("focus", checkGaps);
+    return () => {
+      document.removeEventListener("visibilitychange", checkGaps);
+      window.removeEventListener("focus", checkGaps);
+    };
   }, []);
 
   const rows = useMemo(() =>
@@ -194,16 +188,10 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
 
   const completedCount = useMemo(() => tasks.filter(t => t.projectStatus === "Completed").length, [tasks]);
 
-  const startTimer = (id) => {
-    const accMs = pausedMap[id] || 0;
-    // Resume from frozen point by back-dating startedAt by accumulated ms
-    patch(id, { running: true, startedAt: Date.now() - accMs });
-    setPausedMap(prev => { const n = { ...prev }; delete n[id]; return n; });
-  };
-  const stopTimer  = (t,h) => {
-    setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
-    stopTimerAndLog(t, h);
-  };
+  const startTimer = (id) => patch(id, { running: true, startedAt: Date.now() });
+
+  const stopTimer = (t, h) => stopTimerAndLog(t, h);
+
   const cycleLock = (t) => {
     const s    = t.lockState || "locked";
     const next = s==="unlocked" ? "locked" : "unlocked";
@@ -212,22 +200,16 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
 
   const handleComplete = (t, s) => {
     if (s === "Completed") {
-      // A task is either running, paused, or neither — never both.
       const runningMs = t.running ? Date.now() - (t.startedAt || Date.now()) : 0;
-      const pausedMs  = pausedMap[t.id] || 0;
-      const pendingMs = runningMs + pausedMs;
-      if (pendingMs > 0) {
-        // Snigdha's requested behaviour: don't silently swallow a live timer —
-        // ask first, then auto-stop and log the time before completing.
+      if (runningMs > 0) {
         const ok = window.confirm(
-          `The timer for "${t.task}" is still ${t.running ? "running" : "paused"} ` +
-          `(${fmtHrs(pendingMs / 3600000)} not yet logged).\n\n` +
+          `The timer for "${t.task}" is still running ` +
+          `(${fmtHrs(runningMs / 3600000)} not yet logged).\n\n` +
           `OK — stop the timer, log this time, and mark the task Completed.\n` +
           `Cancel — leave the task unchanged so you can review the timer first.`
         );
         if (!ok) return;
-        stopTimerAndLog(t, pendingMs / 3600000);
-        if (pausedMs) setPausedMap(prev => { const n = { ...prev }; delete n[t.id]; return n; });
+        stopTimerAndLog(t, runningMs / 3600000);
       }
       const updates = { projectStatus: s };
       if (!t.delivered) updates.delivered = TODAY_ISO;
@@ -242,13 +224,13 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
   return (
     <div className="gx-fade" style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
 
-      {/* Auto-pause banner */}
+      {/* Auto-stop banner */}
       {pauseBanner.length > 0 && (
         <div style={{ background:"#FEF3C7", borderBottom:"1px solid #F59E0B", padding:"10px 24px", display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ fontSize:13, fontWeight:600, color:"#92400E" }}>
-            ⏸ Timer paused while you were away —{" "}
+            ⏹ Timer auto-stopped &amp; hours logged —{" "}
             <b>{pauseBanner.join(", ")}</b>.{" "}
-            Click <b>Resume</b> on the task to continue.
+            Click <b>Start</b> on the task to track more time.
           </span>
           <button onClick={() => setPauseBanner([])}
             style={{ marginLeft:"auto", background:"none", border:"none", cursor:"pointer", color:"#92400E", fontSize:20, fontWeight:700, lineHeight:1, padding:"0 4px" }}>
@@ -443,7 +425,6 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Timer — disabled on completed tasks */}
                     <td className="gx-td">
                       <TimerCell running={t.running} startedAt={t.startedAt} disabled={isCompleted}
-                        paused={!!pausedMap[t.id]} pausedMs={pausedMap[t.id] || 0}
                         onStart={isCompleted ? undefined : ()=>startTimer(t.id)}
                         onStop={(h)=>stopTimer(t,h)}/>
                     </td>
@@ -498,6 +479,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
           <span style={{ color:"#586860", fontWeight:700 }}>grey</span> = locked,{" "}
           <span style={{ color:"#C42424", fontWeight:700 }}>red</span> = team has requested an unlock.
           Manual hour entries always appear in <span style={{ color:"#C42424", fontWeight:700 }}>red</span> in the effort breakdown.
+          The timer <b>auto-stops after 20 min of inactivity</b> and logs the hours automatically — start it again to continue tracking.
         </div>
       </div>
     </div>

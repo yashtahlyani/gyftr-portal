@@ -69,7 +69,7 @@ export function Drawer({ task, tab, setTab, onClose, patch, patchUpdate, addEffo
         <div style={{ flex:1, overflowY:"auto", padding:isComments?"0":"20px 22px", display:"flex", flexDirection:"column" }}>
           {tab==="Update" && (
             <div style={{ padding:"20px 22px" }}>
-              <DrawerUpdateTab task={task} patch={patch} patchUpdate={patchUpdate} stopTimerAndLog={stopTimerAndLog} isManager={isManager}/>
+              <DrawerUpdateTab task={task} patch={patch} patchUpdate={patchUpdate} stopTimerAndLog={stopTimerAndLog} addComment={addComment} isManager={isManager}/>
             </div>
           )}
           {tab==="Effort" && (

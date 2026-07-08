@@ -1,14 +1,48 @@
 /* ─── components/drawer/DrawerCommentsTab.jsx ─── */
 import React, { useState } from "react";
-import { Send, MessageSquare } from "lucide-react";
+import { Send, MessageSquare, Link } from "lucide-react";
 import { Avatar } from "../ui";
 
 const ROLE_STYLE = {
   manager: { bg: "#E8F0FE", fg: "#1A56DB", label: "Manager" },
   Manager: { bg: "#E8F0FE", fg: "#1A56DB", label: "Manager" },
+  Link:    { bg: "#E8F7F0", fg: "#0F6B33", label: "Link" },
 };
 const getRoleStyle = (r) =>
   ROLE_STYLE[r] || { bg: "#EAF1EB", fg: "#0F6B33", label: r || "Team" };
+
+/* Parse a comment body that starts with "🔗 " into { isLink, href, label } */
+function parseCommentBody(text) {
+  if (!text.startsWith("🔗 ")) return { isLink: false };
+  const rest = text.slice(3).trim(); // strip "🔗 "
+  const colonIdx = rest.lastIndexOf(": ");
+  if (colonIdx !== -1) {
+    const label = rest.slice(0, colonIdx).trim();
+    const url   = rest.slice(colonIdx + 2).trim();
+    if (url.startsWith("http")) return { isLink: true, href: url, label };
+  }
+  if (rest.startsWith("http")) return { isLink: true, href: rest, label: rest };
+  return { isLink: false };
+}
+
+function CommentBody({ text }) {
+  const { isLink, href, label } = parseCommentBody(text);
+  if (isLink) {
+    return (
+      <div style={{ fontSize:13, lineHeight:1.55, color:"var(--ink)", background:"#E8F7F0", border:"1px solid #C3E6D0", borderRadius:"4px 12px 12px 12px", padding:"8px 12px", display:"flex", alignItems:"center", gap:8, wordBreak:"break-all" }}>
+        <Link size={14} style={{ color:"#0F6B33", flexShrink:0 }}/>
+        <a href={href} target="_blank" rel="noopener noreferrer" style={{ color:"#0F6B33", fontWeight:600, textDecoration:"underline", flex:1 }}>
+          {label && label !== href ? <><span style={{ fontWeight:700 }}>{label}</span><span style={{ fontSize:11.5, color:"#586860", marginLeft:6 }}>{href}</span></> : href}
+        </a>
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontSize:13, lineHeight:1.55, color:"var(--ink)", background:"#F4F8F4", border:"1px solid var(--line)", borderRadius:"4px 12px 12px 12px", padding:"8px 12px", wordBreak:"break-word" }}>
+      {text}
+    </div>
+  );
+}
 
 export function DrawerCommentsTab({ task, addComment, role }) {
   const [draft, setDraft] = useState("");
@@ -46,10 +80,7 @@ export function DrawerCommentsTab({ task, addComment, role }) {
                   </span>
                   <span style={{ fontSize:11, color:"#94a59b", marginLeft:"auto" }}>{c.ts}</span>
                 </div>
-                {/* Comment body — read-only */}
-                <div style={{ fontSize:13, lineHeight:1.55, color:"var(--ink)", background:"#F4F8F4", border:"1px solid var(--line)", borderRadius:"4px 12px 12px 12px", padding:"8px 12px", wordBreak:"break-word" }}>
-                  {c.t}
-                </div>
+                <CommentBody text={c.t}/>
               </div>
             </div>
           );
