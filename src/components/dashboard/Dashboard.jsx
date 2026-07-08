@@ -208,62 +208,25 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, hasDate, dateFrom, dateTo, entriesByTask, cachedByTask]);
 
-  /* ── KPI data ── */
-  const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
-  const isHold    = (t) => STATUS[t.projectStatus]?.group === "hold";
-  const isDone    = (t) => t.projectStatus === "Completed";
-  const isOverdue = (t) => agingDays(t) > 0;
-
-  const grandTotal = filtered.reduce((s, t) => s + totalHours(t), 0);
-
-  const dateLabel = !dateFrom && !dateTo ? "All time"
-    : dateFrom === dateTo               ? fmtDate(dateFrom)
-    : dateFrom && dateTo               ? `${fmtDate(dateFrom)} → ${fmtDate(dateTo)}`
-    : dateFrom                         ? `From ${fmtDate(dateFrom)}`
-    :                                    `Until ${fmtDate(dateTo)}`;
-
-  const cards = [
-    { k:"total",   label:"Total Tasks",  value:kpiTasks.length,                   sub:"click to see all",         rows:() => kpiTasks },
-    { k:"active",  label:"In Progress",  value:kpiTasks.filter(isActive).length,  c:"#2D7FF9", sub:"active",      rows:() => kpiTasks.filter(isActive)  },
-    { k:"hold",    label:"On Hold",      value:kpiTasks.filter(isHold).length,    c:"#E11D74", sub:"hold",        rows:() => kpiTasks.filter(isHold)    },
-    { k:"done",    label:"Completed",    value:kpiTasks.filter(isDone).length,    c:"#15803D", sub:"closed",      rows:() => kpiTasks.filter(isDone)    },
-    { k:"overdue", label:"Overdue",      value:kpiTasks.filter(isOverdue).length, c:"#F5A623", sub:"past due",    rows:() => kpiTasks.filter(isOverdue) },
-    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                  c:"#067A8C", sub:hasDate ? dateLabel : "all time", rows:() => [...kpiTasks].sort((a, b) => totalHours(b) - totalHours(a)) },
-  ];
-
-  const active    = cards.find(c => c.k === drill);
-  const drillRows = active ? active.rows() : [];
-
-  /* ── Task lookup for chart attribution ── */
+  /* ── Task lookup for chart attribution (needed before grandTotal) ── */
   const taskLookup = useMemo(() => {
     const m = {};
     tasks.forEach(t => { m[t.id] = t; });
     return m;
   }, [tasks]);
 
-  /* ── Charts ── */
-  // Status pie + overdue use kpiTasks so they match the KPI counts
-  const statusData = PROJECT_STATUS_LIST
-    .map(s => ({ name:s, value:kpiTasks.filter(t => t.projectStatus === s).length, fill:STATUS[s].dot }))
-    .filter(d => d.value > 0);
-
-  const overdueByProp = PROPERTIES
-    .filter(p => selProps.includes(p))
-    .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
-    .filter(d => d.count > 0);
-
-  // Attribute each task's effort to its first matching task type (or UNTYPED)
+  // Attribute each task's effort to its first matching task type.
+  // Falls back to UNTYPED ("General") so effort is NEVER silently dropped —
+  // tasks with old/unknown types still show under General rather than vanishing.
   const bucketOf = (t) => {
-    const matching = tArr(t).filter(ty => chartTypes.includes(ty));
-    if (matching.length > 0) return matching[0];
-    if (tArr(t).length === 0) return UNTYPED;
-    return null;
+    const matching = tArr(t).filter(ty => ty && chartTypes.includes(ty));
+    return matching.length > 0 ? matching[0] : UNTYPED;
   };
 
-  // Union all three effort sources to avoid any single source missing data:
+  // Union all three effort sources so no path can hide data:
   // 1. rawEntries — direct date-filtered DB query (may be blocked by RLS for some roles)
-  // 2. cachedEntries — localStorage writes from this device (survives RLS SELECT blocks)
-  // 3. joined t.effort — entries fetched via task join (different RLS code path)
+  // 2. cachedEntries — localStorage writes (survives RLS SELECT blocks)
+  // 3. joined t.effort — entries from task join (different RLS code path than direct query)
   // Deduplicate by task_id+date+hours so a stopped timer doesn't count twice.
   const effortSource = useMemo(() => {
     const seen = new Set();
@@ -284,6 +247,57 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawEntries, cachedEntries, filtered, hasDate, dateFrom, dateTo]);
+
+  /* ── KPI data ── */
+  const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
+  const isHold    = (t) => STATUS[t.projectStatus]?.group === "hold";
+  const isDone    = (t) => t.projectStatus === "Completed";
+  const isOverdue = (t) => agingDays(t) > 0;
+
+  // grandTotal uses the same effortSource as the charts so KPI and charts always agree.
+  const grandTotal = useMemo(() => {
+    const committed = effortSource.reduce((s, e) => {
+      const t = taskLookup[e.task_id];
+      if (!t) return s;
+      if (!(allProps || selProps.includes(t.property))) return s;
+      if (!(allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0)) return s;
+      if (!fStatus.includes(t.projectStatus)) return s;
+      if (fOwner !== "All" && t.owner !== fOwner) return s;
+      return s + (Number(e.hours) || 0);
+    }, 0);
+    const live = filtered.reduce((s, t) => s + liveHours(t), 0);
+    return committed + live;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effortSource, taskLookup, allProps, selProps, allTypes, selTypes, fStatus, fOwner, filtered]);
+
+  const dateLabel = !dateFrom && !dateTo ? "All time"
+    : dateFrom === dateTo               ? fmtDate(dateFrom)
+    : dateFrom && dateTo               ? `${fmtDate(dateFrom)} → ${fmtDate(dateTo)}`
+    : dateFrom                         ? `From ${fmtDate(dateFrom)}`
+    :                                    `Until ${fmtDate(dateTo)}`;
+
+  const cards = [
+    { k:"total",   label:"Total Tasks",  value:kpiTasks.length,                   sub:"click to see all",         rows:() => kpiTasks },
+    { k:"active",  label:"In Progress",  value:kpiTasks.filter(isActive).length,  c:"#2D7FF9", sub:"active",      rows:() => kpiTasks.filter(isActive)  },
+    { k:"hold",    label:"On Hold",      value:kpiTasks.filter(isHold).length,    c:"#E11D74", sub:"hold",        rows:() => kpiTasks.filter(isHold)    },
+    { k:"done",    label:"Completed",    value:kpiTasks.filter(isDone).length,    c:"#15803D", sub:"closed",      rows:() => kpiTasks.filter(isDone)    },
+    { k:"overdue", label:"Overdue",      value:kpiTasks.filter(isOverdue).length, c:"#F5A623", sub:"past due",    rows:() => kpiTasks.filter(isOverdue) },
+    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                  c:"#067A8C", sub:hasDate ? dateLabel : "all time", rows:() => [...kpiTasks].sort((a, b) => totalHours(b) - totalHours(a)) },
+  ];
+
+  const active    = cards.find(c => c.k === drill);
+  const drillRows = active ? active.rows() : [];
+
+  /* ── Charts ── */
+  // Status pie + overdue use kpiTasks so they match the KPI counts
+  const statusData = PROJECT_STATUS_LIST
+    .map(s => ({ name:s, value:kpiTasks.filter(t => t.projectStatus === s).length, fill:STATUS[s].dot }))
+    .filter(d => d.value > 0);
+
+  const overdueByProp = PROPERTIES
+    .filter(p => selProps.includes(p))
+    .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
+    .filter(d => d.count > 0);
 
   // Hours per date + hours per property — built directly from effortSource
   const dateMap = {};
