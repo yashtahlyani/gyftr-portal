@@ -28,12 +28,12 @@ const UNTYPED_COLOR = "#94a59b";
 const tColor = (b) => b === UNTYPED ? UNTYPED_COLOR : (PROP_COLOR[b] || typeColor(b));
 const tArr   = (t) => Array.isArray(t.type) ? t.type.filter(Boolean) : t.type ? [t.type] : [];
 
-/* ── Type legend ── */
-function TypeLegend({ types, sel, onToggle, onAll }) {
+/* ── Type / property legend ── */
+function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types" }) {
   return (
     <div style={{ flex:"0 0 180px", borderLeft:"1px solid var(--line)", paddingLeft:14 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-        <span style={{ fontSize:10, fontWeight:800, color:"var(--ink-soft)", textTransform:"uppercase" }}>Task Types</span>
+        <span style={{ fontSize:10, fontWeight:800, color:"var(--ink-soft)", textTransform:"uppercase" }}>{header}</span>
         <span style={{ fontSize:10.5, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={onAll}>
           {sel.length === types.length ? "Clear" : "All"}
         </span>
@@ -302,25 +302,31 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
     .filter(d => d.count > 0);
 
-  // Hours per date + hours per property — built directly from effortSource
-  const dateMap = {};
-  const propMap = {};
+  // Chart 1 (Hours per day): bucket by PROPERTY — every task has a property, so bars are always colored
+  // Chart 2 (Hours per property): bucket by TASK TYPE — shows type breakdown within each property
+  const dateMap = {};  // date → { [property]: hours }
+  const propMap = {};  // property → { [taskType]: hours }
+
+  const taskPassesFilters = (t) =>
+    (allProps || selProps.includes(t.property)) &&
+    (allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0) &&
+    fStatus.includes(t.projectStatus) &&
+    (fOwner === "All" || t.owner === fOwner);
 
   effortSource.forEach(e => {
     if (!e.date || !(Number(e.hours) > 0)) return;
     const t = taskLookup[e.task_id];
-    if (!t) return;
-    if (!(allProps || selProps.includes(t.property))) return;
-    if (!(allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0)) return;
-    if (!fStatus.includes(t.projectStatus)) return;
-    if (fOwner !== "All" && t.owner !== fOwner) return;
-    const bucket = bucketOf(t);
-    if (!bucket) return;
+    if (!t || !taskPassesFilters(t)) return;
+    const h = Number(e.hours);
+    // Chart 1: by property
+    const propBucket = t.property || UNTYPED;
     if (!dateMap[e.date]) dateMap[e.date] = { date: e.date };
-    dateMap[e.date][bucket] = (dateMap[e.date][bucket] || 0) + Number(e.hours);
+    dateMap[e.date][propBucket] = (dateMap[e.date][propBucket] || 0) + h;
+    // Chart 2: by type within property
     if (t.property) {
+      const typeBucket = bucketOf(t);
       if (!propMap[t.property]) propMap[t.property] = { name: t.property };
-      propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + Number(e.hours);
+      propMap[t.property][typeBucket] = (propMap[t.property][typeBucket] || 0) + h;
     }
   });
 
@@ -328,37 +334,38 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   filtered.forEach(t => {
     const live = liveHours(t);
     if (!(live > 0.008)) return;
-    const sd     = timerStartDate(t);
-    const bucket = bucketOf(t);
-    if (!sd || !bucket) return;
+    const sd = timerStartDate(t);
+    if (!sd) return;
+    const propBucket  = t.property || UNTYPED;
+    const typeBucket  = bucketOf(t);
     if (!dateMap[sd]) dateMap[sd] = { date: sd };
-    dateMap[sd][bucket] = (dateMap[sd][bucket] || 0) + live;
+    dateMap[sd][propBucket] = (dateMap[sd][propBucket] || 0) + live;
     if (t.property) {
       if (!propMap[t.property]) propMap[t.property] = { name: t.property };
-      propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + live;
+      propMap[t.property][typeBucket] = (propMap[t.property][typeBucket] || 0) + live;
     }
   });
 
   const dateData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
   const propData = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
 
-  // Collect all bucket keys actually present in the data (task types + any property fallbacks)
   const keysOf = (rows) => {
     const s = new Set();
     rows.forEach(d => Object.keys(d).forEach(k => { if (k !== 'date' && k !== 'name') s.add(k); }));
     return [...s];
   };
-  const typesInDateData = keysOf(dateData);
-  const typesInPropData = keysOf(propData).filter(b => propData.some(d => (d[b] || 0) > 0));
+  // Chart 1: property names that have data
+  const propsInDateData = keysOf(dateData);
+  // Chart 2: task type names that have data
+  const typesInPropData = keysOf(propData);
 
-  // Legend: task types with data + properties used as fallback buckets + UNTYPED if needed
+  // Legend for chart 2 (task types)
   const legendTypes = [
     ...TASK_TYPES.filter(ty =>
       effortSource.some(e => { const t = taskLookup[e.task_id]; return t && tArr(t).includes(ty); }) ||
       filtered.some(t => tArr(t).includes(ty))
     ),
-    ...typesInDateData.filter(b => !TASK_TYPES.includes(b) && b !== UNTYPED), // property fallback buckets
-    ...(filtered.some(t => tArr(t).length === 0 && !t.property) ? [UNTYPED] : []),
+    ...(filtered.some(t => tArr(t).length === 0) ? [UNTYPED] : []),
   ];
 
   /* ── Handlers ── */
@@ -592,19 +599,19 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
 
       {/* ── Hours per date ── */}
       <div className="gx-card" style={{ padding:"18px 20px", marginBottom:14 }}>
-        <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Hours logged per day · by task type</h3>
+        <h3 className="gx-disp" style={{ fontSize:15, fontWeight:700, margin:"0 0 2px" }}>Hours logged per day · by property</h3>
         <p style={{ fontSize:12, color:"var(--ink-soft)", margin:"0 0 12px" }}>Effort by day · {dateLabel}</p>
         <div style={{ display:"flex", gap:16 }}>
           <div style={{ flex:1, minWidth:0 }}>
-            {dateData.length > 0 && typesInDateData.length > 0 ? (
+            {dateData.length > 0 && propsInDateData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={dateData} barCategoryGap="22%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#EEF4EF" vertical={false}/>
                   <XAxis dataKey="name" tick={{ fontSize:10, fill:"#586860" }} axisLine={false} tickLine={false} interval={0} angle={-22} textAnchor="end" height={56}/>
                   <YAxis tickFormatter={v => `${v}h`} tick={{ fontSize:11, fill:"#94a59b" }} axisLine={false} tickLine={false}/>
                   <Tooltip content={<HourTooltip/>}/>
-                  {typesInDateData.map((t, i, arr) => (
-                    <Bar key={t} dataKey={t} stackId="d" fill={tColor(t)} radius={i === arr.length - 1 ? [5,5,0,0] : [0,0,0,0]}/>
+                  {propsInDateData.map((p, i, arr) => (
+                    <Bar key={p} dataKey={p} stackId="d" fill={PROP_COLOR[p] || UNTYPED_COLOR} radius={i === arr.length - 1 ? [5,5,0,0] : [0,0,0,0]}/>
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -614,8 +621,8 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </div>
             )}
           </div>
-          <TypeLegend types={legendTypes} sel={chartTypes} onToggle={toggleChart}
-            onAll={() => setChartTypes(chartTypes.length === [...TASK_TYPES,UNTYPED].length ? [] : [...TASK_TYPES,UNTYPED])}/>
+          <TypeLegend header="Properties" types={propsInDateData} sel={selProps} onToggle={toggleProp}
+            onAll={() => setSelProps(selProps.length === PROPERTIES.length ? [] : PROPERTIES.slice())}/>
         </div>
       </div>
 
@@ -643,7 +650,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </div>
             )}
           </div>
-          <TypeLegend types={legendTypes} sel={chartTypes} onToggle={toggleChart}
+          <TypeLegend header="Task Types" types={legendTypes} sel={chartTypes} onToggle={toggleChart}
             onAll={() => setChartTypes(chartTypes.length === [...TASK_TYPES,UNTYPED].length ? [] : [...TASK_TYPES,UNTYPED])}/>
         </div>
       </div>
