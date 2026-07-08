@@ -50,20 +50,33 @@ export function useTaskStore(currentUser) {
       await supabase.from("tasks").update({ description: updates.description }).eq("id", id);
   }, []);
 
+  /* ── Local effort cache — survives Supabase RLS / SELECT blocks ── */
+  const EFFORT_CACHE = "gyftr_effort_log";
+  const cacheEntry = (taskId, date, hours, status) => {
+    try {
+      const arr = JSON.parse(localStorage.getItem(EFFORT_CACHE) || "[]");
+      arr.push({ task_id: taskId, date, hours, status, _at: Date.now() });
+      localStorage.setItem(EFFORT_CACHE, JSON.stringify(arr.slice(-3000)));
+    } catch(_) {}
+  };
+
   /* ── addEffort ── */
   const addEffort = useCallback(async (id, entry) => {
+    cacheEntry(id, entry.date, entry.hours, entry.status);
     setTasks(ts => ts.map(t => t.id===id ? { ...t, effort:[...(t.effort||[]),entry], updatedAt:"just now", updatedTs:Date.now() } : t));
     if (!supabase) return;
-    await supabase.from("effort_entries").insert({
+    const { error } = await supabase.from("effort_entries").insert({
       task_id: id, date: entry.date, status: entry.status,
       hours: entry.hours, manual: entry.manual || false,
     });
+    if (error) console.error("[useTaskStore] addEffort insert failed:", error.message);
     await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, []);
 
   /* ── stopTimerAndLog — atomic: stops timer + logs effort in one flow to prevent race conditions ── */
   const stopTimerAndLog = useCallback(async (task, hours) => {
     const entry = { date: TODAY_ISO, status: task.effortStatus, hours: Math.round(hours * 100) / 100 };
+    cacheEntry(task.id, entry.date, entry.hours, entry.status);
     setTasks(ts => ts.map(t => t.id === task.id ? {
       ...t, running: false, startedAt: null,
       effort: [...(t.effort || []), entry],
@@ -72,9 +85,10 @@ export function useTaskStore(currentUser) {
     if (!supabase) return;
     // Stop the timer in DB first — prevents subscription refetch from showing it as still running
     await supabase.from("tasks").update({ running: false, started_at: null, updated_at: new Date() }).eq("id", task.id);
-    await supabase.from("effort_entries").insert({
+    const { error } = await supabase.from("effort_entries").insert({
       task_id: task.id, date: entry.date, status: entry.status, hours: entry.hours, manual: false,
     });
+    if (error) console.error("[useTaskStore] effort_entries insert failed:", error.message, "— hours saved to localStorage cache");
   }, []);
 
   /* ── removeEffort ── */

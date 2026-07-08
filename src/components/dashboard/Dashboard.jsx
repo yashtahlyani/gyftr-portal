@@ -125,6 +125,26 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return map;
   }, [rawEntries]);
 
+  // Read from localStorage cache — available even when Supabase SELECT is blocked
+  const cachedEntries = useMemo(() => {
+    try {
+      const all = JSON.parse(localStorage.getItem("gyftr_effort_log") || "[]");
+      return hasDate
+        ? all.filter(e => inRange((e.date || "").slice(0, 10)))
+        : all;
+    } catch(_) { return []; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, tasksSig]);
+
+  const cachedByTask = useMemo(() => {
+    const map = {};
+    cachedEntries.forEach(e => {
+      if (!map[e.task_id]) map[e.task_id] = [];
+      map[e.task_id].push(e);
+    });
+    return map;
+  }, [cachedEntries]);
+
   const owners = useMemo(() => Array.from(new Set(tasks.map(t => t.owner).filter(Boolean))), [tasks]);
 
   /* ── Date helpers ── */
@@ -132,14 +152,15 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
 
   const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
 
-  // Merge direct query (DB-level date filter) with t.effort (has optimistic updates from timer stops).
-  // Take whichever source has more entries so we always show the most complete picture.
+  // Merge all three sources: direct DB query, localStorage cache, and task-join data.
+  // Take whichever has the most entries — covers RLS blocks, optimistic updates, and cross-device sync.
   const committedEntries = (t) => {
     const direct = entriesByTask[t.id] || [];
+    const cached = cachedByTask[t.id] || [];
     const joined = (t.effort || []).filter(e =>
       hasDate ? inRange((e.date || "").slice(0, 10)) : true
     );
-    return direct.length >= joined.length ? direct : joined;
+    return [direct, cached, joined].reduce((best, src) => src.length > best.length ? src : best, []);
   };
 
   // Hours from committed entries
