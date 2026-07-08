@@ -3,7 +3,9 @@ import { STATUS, TASK_TYPES, TYPE_PALETTE, PEOPLE, TEAM_OF } from "../constants"
 
 /* ── Date helpers ── */
 export const TODAY = new Date();
-export const TODAY_ISO = new Date().toISOString().slice(0, 10);
+// Use local date (not UTC) — important for IST users where UTC midnight = 5:30am IST
+const _t = TODAY;
+export const TODAY_ISO = `${_t.getFullYear()}-${String(_t.getMonth()+1).padStart(2,"0")}-${String(_t.getDate()).padStart(2,"0")}`;
 export const NOW_MS    = Date.now();
 
 export const fmtDate = (s) =>
