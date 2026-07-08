@@ -62,8 +62,8 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const [propMenuOpen,   setPropMenuOpen]   = useState(false);
   const [typeMenuOpen,   setTypeMenuOpen]   = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
-  const [dateFrom,       setDateFrom]       = useState(TODAY_ISO); // default: today
-  const [dateTo,         setDateTo]         = useState(TODAY_ISO); // default: today
+  const [dateFrom,       setDateFrom]       = useState(""); // default: all time
+  const [dateTo,         setDateTo]         = useState(""); // default: all time
   const [fStatus,        setFStatus]        = useState(STATUS_LIST.slice());
   const [fOwner,         setFOwner]         = useState("All");
 
@@ -71,45 +71,39 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const to   = dateTo;
 
   const owners    = useMemo(()=>Array.from(new Set(tasks.map(t=>t.owner).filter(Boolean))),[tasks]);
-  const hasFilter = dateFrom||dateTo||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
+  const hasFilter = !!(dateFrom||dateTo)||fStatus.length!==STATUS_LIST.length||fOwner!=="All"||selProps.length!==PROPERTIES.length||selTypes.length!==TASK_TYPES.length;
 
-  const clearAll  = () => {
+  const clearAll = () => {
     setDateFrom(""); setDateTo("");
     setFStatus(STATUS_LIST.slice()); setFOwner("All");
     setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice());
     setChartTypes([...TASK_TYPES, UNTYPED]); setDrill(null);
   };
-  const setToday  = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
+  const setToday = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
 
   // True if effort entry date falls within the selected range
   const inRange   = (d) => d ? ((!from || d >= from) && (!to || d <= to)) : false;
 
-  // Include a task in the filtered set if:
-  // - no date range set → always include
-  // - date range set → include if it has at least one effort entry in range
-  const taskInRange = (t) => {
-    if (!from && !to) return true;
-    return (t.effort || []).some(e => inRange(e.date));
-  };
-
-  // Return effort entries for a task filtered to the selected date range
+  // Return effort entries for a task filtered to the selected date range.
+  // Used for charts and effort totals — always date-aware.
   const effEntries = (t) => (from || to)
     ? (t.effort || []).filter(e => inRange(e.date))
     : (t.effort || []);
 
-  const effTotal  = (t) => effEntries(t).reduce((a,e) => a + (Number(e.hours) || 0), 0);
+  const effTotal = (t) => effEntries(t).reduce((a,e) => a + (Number(e.hours) || 0), 0);
 
   const tArr = (t) => Array.isArray(t.type) ? t.type : t.type ? [t.type] : [];
   const allProps = selProps.length === PROPERTIES.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
 
+  // KPI cards + drill table: filter by property / status / type / owner only.
+  // Date filter applies to EFFORT totals and charts — not to which tasks appear.
   const filtered = useMemo(() => tasks.filter(t =>
     (allProps || selProps.includes(t.property)) &&
     (allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0) &&
     fStatus.includes(t.projectStatus) &&
-    (fOwner === "All" || t.owner === fOwner) &&
-    taskInRange(t)
-  ), [tasks, selProps, selTypes, fStatus, fOwner, dateFrom, dateTo]);
+    (fOwner === "All" || t.owner === fOwner)
+  ), [tasks, selProps, selTypes, fStatus, fOwner]);
 
   const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
   const isHold    = (t) => STATUS[t.projectStatus]?.group === "hold";
