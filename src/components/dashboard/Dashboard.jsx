@@ -234,70 +234,92 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const active    = cards.find(c => c.k === drill);
   const drillRows = active ? active.rows() : [];
 
-  /* ── Charts (committed entries only, date-filtered) ── */
+  /* ── Task lookup for chart attribution ── */
+  const taskLookup = useMemo(() => {
+    const m = {};
+    tasks.forEach(t => { m[t.id] = t; });
+    return m;
+  }, [tasks]);
+
+  /* ── Charts ── */
+  // Status pie + overdue use kpiTasks so they match the KPI counts
   const statusData = PROJECT_STATUS_LIST
-    .map(s => ({ name:s, value:filtered.filter(t => t.projectStatus === s).length, fill:STATUS[s].dot }))
+    .map(s => ({ name:s, value:kpiTasks.filter(t => t.projectStatus === s).length, fill:STATUS[s].dot }))
     .filter(d => d.value > 0);
 
   const overdueByProp = PROPERTIES
     .filter(p => selProps.includes(p))
-    .map(p => ({ name:p, count:filtered.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
+    .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
     .filter(d => d.count > 0);
 
-  // Attribute each task's committed effort to its first matching task type (or UNTYPED)
+  // Attribute each task's effort to its first matching task type (or UNTYPED)
   const bucketOf = (t) => {
     const matching = tArr(t).filter(ty => chartTypes.includes(ty));
     if (matching.length > 0) return matching[0];
-    if (tArr(t).length === 0) return UNTYPED; // no type at all → General
-    return null; // has types, all filtered out by user
+    if (tArr(t).length === 0) return UNTYPED;
+    return null;
   };
 
-  // Hours per date — committed entries + live running timer hours
+  // Effort source: rawEntries (date-filtered by DB) is most reliable.
+  // Fall back to joined task effort when rawEntries is empty (RLS block).
+  const effortSource = rawEntries.length > 0
+    ? rawEntries
+    : filtered.flatMap(t =>
+        (t.effort || [])
+          .filter(e => !hasDate || inRange((e.date || "").slice(0, 10)))
+          .map(e => ({ task_id: t.id, date: e.date, hours: e.hours }))
+      );
+
+  // Hours per date + hours per property — built directly from effortSource
   const dateMap = {};
-  filtered.forEach(t => {
+  const propMap = {};
+
+  effortSource.forEach(e => {
+    if (!e.date || !(Number(e.hours) > 0)) return;
+    const t = taskLookup[e.task_id];
+    if (!t) return;
+    if (!(allProps || selProps.includes(t.property))) return;
+    if (!(allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0)) return;
+    if (!fStatus.includes(t.projectStatus)) return;
+    if (fOwner !== "All" && t.owner !== fOwner) return;
     const bucket = bucketOf(t);
     if (!bucket) return;
-    // committed
-    committedEntries(t).forEach(e => {
-      if (!e.date || !(Number(e.hours) > 0)) return;
-      if (!dateMap[e.date]) dateMap[e.date] = { date: e.date };
-      dateMap[e.date][bucket] = (dateMap[e.date][bucket] || 0) + Number(e.hours);
-    });
-    // live (timer running now)
-    const live = liveHours(t);
-    if (live > 0.008) { // >~30 seconds
-      const sd = timerStartDate(t);
-      if (sd) {
-        if (!dateMap[sd]) dateMap[sd] = { date: sd };
-        dateMap[sd][bucket] = (dateMap[sd][bucket] || 0) + live;
-      }
+    if (!dateMap[e.date]) dateMap[e.date] = { date: e.date };
+    dateMap[e.date][bucket] = (dateMap[e.date][bucket] || 0) + Number(e.hours);
+    if (t.property) {
+      if (!propMap[t.property]) propMap[t.property] = { name: t.property };
+      propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + Number(e.hours);
     }
   });
-  const dateData         = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
-  const allBuckets       = [...TASK_TYPES, UNTYPED];
-  const typesInDateData  = allBuckets.filter(b => chartTypes.includes(b) && dateData.some(d => (d[b] || 0) > 0));
 
-  // Hours per property — committed + live
-  const propMap = {};
+  // Add live running timer hours
   filtered.forEach(t => {
-    const bucket = bucketOf(t);
-    if (!bucket || !t.property) return;
-    if (!propMap[t.property]) propMap[t.property] = { name: t.property };
-    committedEntries(t).forEach(e => {
-      if (!(Number(e.hours) > 0)) return;
-      propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + Number(e.hours);
-    });
     const live = liveHours(t);
-    if (live > 0.008) {
+    if (!(live > 0.008)) return;
+    const sd     = timerStartDate(t);
+    const bucket = bucketOf(t);
+    if (!sd || !bucket) return;
+    if (!dateMap[sd]) dateMap[sd] = { date: sd };
+    dateMap[sd][bucket] = (dateMap[sd][bucket] || 0) + live;
+    if (t.property) {
+      if (!propMap[t.property]) propMap[t.property] = { name: t.property };
       propMap[t.property][bucket] = (propMap[t.property][bucket] || 0) + live;
     }
   });
-  const propData         = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
-  const typesInPropData  = allBuckets.filter(b => chartTypes.includes(b) && propData.some(d => (d[b] || 0) > 0));
 
-  // Legend shows types that appear in the filtered task set
+  const dateData        = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
+  const allBuckets      = [...TASK_TYPES, UNTYPED];
+  const typesInDateData = allBuckets.filter(b => chartTypes.includes(b) && dateData.some(d => (d[b] || 0) > 0));
+
+  const propData        = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
+  const typesInPropData = allBuckets.filter(b => chartTypes.includes(b) && propData.some(d => (d[b] || 0) > 0));
+
+  // Legend shows types present in effortSource (or filtered tasks when no date)
   const legendTypes = [
-    ...TASK_TYPES.filter(ty => filtered.some(t => tArr(t).includes(ty))),
+    ...TASK_TYPES.filter(ty =>
+      effortSource.some(e => { const t = taskLookup[e.task_id]; return t && tArr(t).includes(ty); }) ||
+      filtered.some(t => tArr(t).includes(ty))
+    ),
     ...(filtered.some(t => tArr(t).length === 0) ? [UNTYPED] : []),
   ];
 
