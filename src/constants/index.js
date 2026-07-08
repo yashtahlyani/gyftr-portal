@@ -157,68 +157,71 @@ export const PEOPLE = {
 };
 
 export const PROP_COLOR = {
-  "Smartbuy (HDFC)":                       "#62A92A",
-  "HDFC Bank Millennia/Rewards":           "#0277BD",
-  "GyFTR":                                 "#2D7FF9",
-  "EDGE REWARDS (Axis)":                   "#B91C1C",
-  "Standard Chartered":                    "#3B82F6",
-  "SBI Card":                              "#F5A623",
-  "YONO SBI":                              "#00838F",
-  "SBI SimplyCLICK":                       "#00695C",
-  "Indus Moments/IndusInd Insta Vouchers": "#E11D74",
-  "IndusInd Shopplus/Xtrasmiles":          "#0EA5E9",
-  "Indus Flash Sale / IndusIndOffer":      "#059669",
-  "Yescart":                               "#65A30D",
-  "Yesrewardz":                            "#DB2777",
-  "HP Pay":                                "#16A34A",
-  "IRCTC":                                 "#AD1457",
-  "Prism Anmol Rishtey":                   "#DC2626",
-  "Prism Aspire":                          "#F43F5E",
-  "RBL":                                   "#84CC16",
-  "RBL BANK MY SHOP":                      "#558B2F",
-  "BFL":                                   "#EF4444",
-  "Kotak":                                 "#F59E0B",
-  "DBS":                                   "#F97316",
-  "Federal":                               "#4527A0",
-  "IDFC":                                  "#6D28D9",
-  "HSBC/Insta benefits":                   "#CC0000",
-  "Timespoint":                            "#EC4899",
-  "AU Rewardz":                            "#14B8A6",
-  "AU Click2Gift":                         "#20B2AA",
-  "Prince Pipe":                           "#2563EB",
-  "Airtel Ratna":                          "#FF3B30",
-  "Zillion":                               "#A855F7",
-  "BPCL Smartfleet":                       "#0D47A1",
-  "BPCL MAK":                              "#1B5E20",
-  "HP Drive Track Plus":                   "#4A148C",
-  "Creditlink":                            "#22C55E",
-  "Dell Loyalty program":                  "#FB7185",
-  "Postpe":                                "#0891B2",
-  "IOCL Xtra Rewards":                     "#B45309",
-  "Reward Program":                        "#880E4F",
-  "Nexus Bachat":                          "#7C3AED",
-  "Expressgifts":                          "#15803D",
-  "NFTERNR":                               "#006064",
-  "Cera Superstar":                        "#9333EA",
-  "Wonder Cement":                         "#33691E",
-  "Bosch":                                 "#BF360C",
-  "JK Paper":                              "#37474F",
-  "JK Cement":                             "#795548",
-  "Sintex":                                "#1A237E",
-  "FINOLEX BANNER":                        "#F57F17",
-  "Visa Offers":                           "#1D4ED8",
-  "Wedding Box":                           "#BE185D",
-  "Godrej Club One":                       "#B45309",
-  "Amex":                                  "#283593",
-  "Himalya Sanjeevani":                    "#2E7D32",
-  "VARROC":                                "#E65100",
-  "Spentro":                               "#0F766E",
-  "Perfetti Van Melle":                    "#D81B60",
-  "LUMINOUS":                              "#F9A825",
-  "MuffinPay":                             "#6A1B9A",
-  "Muffin Green Finance":                  "#27AE60",
-  "LKP Finance Ltd":                       "#004D40",
-  "HP Lubricant":                          "#8B4513",
+  // Each property is assigned a hue zone no other nearby property shares.
+  // Fixed: AU twins (teal vs rose), IOCL=Godrej duplicate, 9-blue cluster,
+  // 8-red/pink cluster, LUMINOUS≈SBI Card, 10-green cluster.
+  "Smartbuy (HDFC)":                       "#16A34A",  // green
+  "HDFC Bank Millennia/Rewards":           "#0277BD",  // dark sky-blue
+  "GyFTR":                                 "#7C3AED",  // violet
+  "EDGE REWARDS (Axis)":                   "#B91C1C",  // dark red
+  "Standard Chartered":                    "#0891B2",  // cyan (was blue — now clearly ≠ HDFC)
+  "SBI Card":                              "#D97706",  // amber
+  "YONO SBI":                              "#059669",  // emerald (was same teal as SimplyCLICK)
+  "SBI SimplyCLICK":                       "#134E4A",  // very dark teal (clearly ≠ YONO SBI)
+  "Indus Moments/IndusInd Insta Vouchers": "#E11D74",  // rose
+  "IndusInd Shopplus/Xtrasmiles":          "#F97316",  // orange (was sky-blue — now clearly ≠ Indus siblings)
+  "Indus Flash Sale / IndusIndOffer":      "#047857",  // dark emerald
+  "Yescart":                               "#84CC16",  // bright lime (was same lime as Smartbuy)
+  "Yesrewardz":                            "#9D174D",  // dark raspberry (clearly ≠ Indus Moments rose)
+  "HP Pay":                                "#14532D",  // dark forest green (clearly ≠ Smartbuy)
+  "IRCTC":                                 "#DC2626",  // red (was dark-pink #AD1457)
+  "Prism Anmol Rishtey":                   "#EA580C",  // orange-red (clearly ≠ IRCTC red)
+  "Prism Aspire":                          "#EC4899",  // hot pink
+  "RBL":                                   "#4338CA",  // indigo (was lime — completely different)
+  "RBL BANK MY SHOP":                      "#854D0E",  // warm brown (was olive — now brown)
+  "BFL":                                   "#EF4444",  // bright red
+  "Kotak":                                 "#F59E0B",  // amber-gold
+  "DBS":                                   "#C2410C",  // brick orange (was same orange as Prism Anmol)
+  "Federal":                               "#312E81",  // dark indigo-navy (clearly ≠ RBL indigo)
+  "IDFC":                                  "#9333EA",  // purple (clearly ≠ GyFTR violet and Federal)
+  "HSBC/Insta benefits":                   "#991B1B",  // dark crimson (clearly ≠ IRCTC, BFL, EDGE)
+  "Timespoint":                            "#DB2777",  // deep pink
+  "AU Rewardz":                            "#0F766E",  // dark teal
+  "AU Click2Gift":                         "#F43F5E",  // vibrant coral-rose (was near-identical teal!)
+  "Prince Pipe":                           "#5B21B6",  // deep violet (was blue — now ≠ blue cluster)
+  "Airtel Ratna":                          "#E53935",  // Airtel red-orange (≠ IRCTC/BFL/EDGE)
+  "Zillion":                               "#A855F7",  // lavender
+  "BPCL Smartfleet":                       "#155E75",  // dark cyan-teal
+  "BPCL MAK":                              "#78350F",  // dark amber-brown (was dark green — now ≠ greens)
+  "HP Drive Track Plus":                   "#581C87",  // deep purple (clearly ≠ IDFC purple)
+  "Creditlink":                            "#22C55E",  // bright green
+  "Dell Loyalty program":                  "#6366F1",  // periwinkle (was pink #FB7185 — now a distinct blue-violet)
+  "Postpe":                                "#0EA5E9",  // sky blue (clearly ≠ Standard Chartered cyan)
+  "IOCL Xtra Rewards":                     "#92400E",  // dark ochre-brown (was #B45309 = Godrej duplicate)
+  "Reward Program":                        "#831843",  // dark maroon
+  "Nexus Bachat":                          "#C026D3",  // fuchsia (was same violet as GyFTR cluster)
+  "Expressgifts":                          "#064E3B",  // very dark emerald (clearly ≠ HP Pay)
+  "NFTERNR":                               "#164E63",  // dark steel-blue
+  "Cera Superstar":                        "#D946EF",  // bright magenta (clearly ≠ IDFC, Nexus)
+  "Wonder Cement":                         "#4D7C0F",  // dark olive
+  "Bosch":                                 "#9A3412",  // deep brick
+  "JK Paper":                              "#374151",  // slate grey
+  "JK Cement":                             "#57534E",  // warm grey
+  "Sintex":                                "#1E3A8A",  // navy blue (clearly ≠ violet cluster)
+  "FINOLEX BANNER":                        "#CA8A04",  // golden yellow
+  "Visa Offers":                           "#3B82F6",  // medium blue
+  "Wedding Box":                           "#F472B6",  // light rose-pink (clearly ≠ other dark pinks)
+  "Godrej Club One":                       "#5E35B1",  // indigo-violet (was #B45309 = exact IOCL duplicate!)
+  "Amex":                                  "#283593",  // dark Amex-blue (clearly ≠ Visa, HDFC)
+  "Himalya Sanjeevani":                    "#2E7D32",  // medium forest green (herbal/natural)
+  "VARROC":                                "#E65100",  // deep orange
+  "Spentro":                               "#0E4C5A",  // dark petrol-blue
+  "Perfetti Van Melle":                    "#BE185D",  // raspberry
+  "LUMINOUS":                              "#EAB308",  // bright yellow (was #F9A825 ≈ SBI Card amber!)
+  "MuffinPay":                             "#4C1D95",  // very dark purple
+  "Muffin Green Finance":                  "#10B981",  // medium emerald
+  "LKP Finance Ltd":                       "#065F46",  // very dark green
+  "HP Lubricant":                          "#6B3A1F",  // dark brown
 };
 
 export const TYPE_PALETTE = [
