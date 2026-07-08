@@ -143,6 +143,12 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
 
   const grandTotal = filtered.reduce((s, t) => s + totalHours(t), 0);
 
+  const dateLabel = !dateFrom && !dateTo ? "All time"
+    : dateFrom === dateTo               ? fmtDate(dateFrom)
+    : dateFrom && dateTo               ? `${fmtDate(dateFrom)} → ${fmtDate(dateTo)}`
+    : dateFrom                         ? `From ${fmtDate(dateFrom)}`
+    :                                    `Until ${fmtDate(dateTo)}`;
+
   const cards = [
     { k:"total",   label:"Total Tasks",  value:filtered.length,                  sub:"click to see all",         rows:() => filtered },
     { k:"active",  label:"In Progress",  value:filtered.filter(isActive).length, c:"#2D7FF9", sub:"active",      rows:() => filtered.filter(isActive)  },
@@ -231,12 +237,6 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const setToday    = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
 
   const hasFilter = hasDate || fStatus.length !== STATUS_LIST.length || fOwner !== "All" || !allProps || !allTypes;
-
-  const dateLabel = !dateFrom && !dateTo ? "All time"
-    : dateFrom === dateTo               ? fmtDate(dateFrom)
-    : dateFrom && dateTo               ? `${fmtDate(dateFrom)} → ${fmtDate(dateTo)}`
-    : dateFrom                         ? `From ${fmtDate(dateFrom)}`
-    :                                    `Until ${fmtDate(dateTo)}`;
 
   const PropTick = ({ x, y, payload }) => (
     <text x={x} y={y + 14} textAnchor="middle" fontSize={12} fontWeight={800} fill={PROP_COLOR[payload.value] || "#586860"}>{payload.value}</text>
