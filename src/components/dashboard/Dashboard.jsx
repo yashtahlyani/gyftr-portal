@@ -1,5 +1,5 @@
 /* ─── components/dashboard/Dashboard.jsx ─── */
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   ResponsiveContainer, Tooltip,
@@ -8,6 +8,7 @@ import { Plus, ChevronDown, Clock, CalendarDays } from "lucide-react";
 import { Avatar, StatusChip } from "../ui";
 import { PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR } from "../../constants";
 import { typeColor, fmtDate, fmtHrs, agingDays, taskNo, TODAY_ISO } from "../../utils";
+import { supabase } from "../../lib/supabase";
 
 /* ── Helpers ── */
 const fmtH = (h) => {
@@ -86,28 +87,77 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const [fStatus,        setFStatus]        = useState(STATUS_LIST.slice());
   const [fOwner,         setFOwner]         = useState("All");
 
-  // Tick every 60 s so live running-timer hours update in the KPI
+  // Tick every 30 s so live running-timer hours update in the KPI and charts
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick(x => x + 1), 60_000);
+    const id = setInterval(() => setTick(x => x + 1), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  // Direct effort_entries query — bypasses the task join so RLS or row-limit issues on the join don't hide data
+  const [rawEntries, setRawEntries] = useState([]);
+  const fetchRef = useRef(0);
+  useEffect(() => {
+    if (!supabase) return;
+    const run = ++fetchRef.current;
+    const go = async () => {
+      let q = supabase.from("effort_entries").select("task_id, date, hours, status");
+      if (dateFrom) q = q.gte("date", dateFrom);
+      if (dateTo)   q = q.lte("date", dateTo);
+      const { data } = await q;
+      if (run === fetchRef.current && data) setRawEntries(data);
+    };
+    go();
+  }, [dateFrom, dateTo]);
+
+  // Re-fetch effort entries whenever any task changes (timer stopped, manual entry added)
+  const tasksSig = tasks.map(t => t.updatedTs).join(",");
+  useEffect(() => {
+    if (!supabase) return;
+    const run = ++fetchRef.current;
+    const go = async () => {
+      let q = supabase.from("effort_entries").select("task_id, date, hours, status");
+      if (dateFrom) q = q.gte("date", dateFrom);
+      if (dateTo)   q = q.lte("date", dateTo);
+      const { data } = await q;
+      if (run === fetchRef.current && data) setRawEntries(data);
+    };
+    go();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksSig]);
+
+  // Index raw entries by task_id for O(1) lookup
+  const entriesByTask = useMemo(() => {
+    const map = {};
+    rawEntries.forEach(e => {
+      if (!map[e.task_id]) map[e.task_id] = [];
+      map[e.task_id].push(e);
+    });
+    return map;
+  }, [rawEntries]);
 
   const owners = useMemo(() => Array.from(new Set(tasks.map(t => t.owner).filter(Boolean))), [tasks]);
 
   /* ── Date helpers ── */
-  const afterFrom  = (d) => !dateFrom || (d && d >= dateFrom);
-  const beforeTo   = (d) => !dateTo   || (d && d <= dateTo);
-  const inRange    = (d) => !!d && afterFrom(d) && beforeTo(d);
-  const hasDate    = !!(dateFrom || dateTo);
+  const hasDate = !!(dateFrom || dateTo);
 
-  // Committed effort entries filtered to the selected date range
-  const committedEntries = (t) => hasDate
-    ? (t.effort || []).filter(e => inRange(e.date))
-    : (t.effort || []);
+  // Committed entries come from the direct query (already date-filtered at DB level)
+  // Falls back to t.effort if supabase is unavailable
+  const committedEntries = (t) => {
+    if (supabase) return entriesByTask[t.id] || [];
+    const all = t.effort || [];
+    if (!hasDate) return all;
+    return all.filter(e => {
+      const d = (e.date || "").slice(0, 10);
+      return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+    });
+  };
 
   // Hours from committed entries
   const committedHours = (t) => committedEntries(t).reduce((s, e) => s + (Number(e.hours) || 0), 0);
+
+  // inRange still needed for timerStartDate check
+  const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
 
   // Live hours from a running timer — only counted when the timer start date is inside the filter range
   const timerStartDate = (t) => {
