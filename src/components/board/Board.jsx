@@ -79,7 +79,6 @@ function TypeSelect({ value, onChange }) {
 // person using that URL is affected; everyone else keeps the normal 20 min.
 const IDLE_TEST_SEC = Number(new URLSearchParams(window.location.search).get("idletest"));
 const INACTIVITY_MS = IDLE_TEST_SEC > 0 ? IDLE_TEST_SEC * 1000 : 20 * 60 * 1000;
-const IDLE_CHECK_MS = IDLE_TEST_SEC > 0 ? 5_000 : 30_000;
 const HB_KEY = (id) => `gyftr_hb_${id}`;
 
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
@@ -134,7 +133,9 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
         const names = [];
         // Credit time up to when the laptop went to sleep (now - gap),
         // not up to now (which would include the sleep time itself).
+        // Guard: skip if checkGaps already froze this task (HB key removed).
         tasksRef.current.filter(t => t.running).forEach(t => {
+          if (!localStorage.getItem(HB_KEY(t.id))) return;
           names.push(freezeTimer(t, now - gap));
         });
         if (names.length) setPauseBanner(names);
@@ -479,7 +480,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
           <span style={{ color:"#586860", fontWeight:700 }}>grey</span> = locked,{" "}
           <span style={{ color:"#C42424", fontWeight:700 }}>red</span> = team has requested an unlock.
           Manual hour entries always appear in <span style={{ color:"#C42424", fontWeight:700 }}>red</span> in the effort breakdown.
-          The timer <b>auto-stops after 20 min of inactivity</b> and logs the hours automatically — start it again to continue tracking.
+          The timer <b>auto-stops if the laptop sleeps for 20+ min</b> and logs the hours automatically — start it again to continue tracking.
         </div>
       </div>
     </div>
