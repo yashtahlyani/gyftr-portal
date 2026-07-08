@@ -94,24 +94,12 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     return () => clearInterval(id);
   }, []);
 
-  // Direct effort_entries query — bypasses the task join so RLS or row-limit issues on the join don't hide data
+  // Direct effort_entries query — bypasses the task join so RLS or row-limit issues don't hide data
   const [rawEntries, setRawEntries] = useState([]);
   const fetchRef = useRef(0);
-  useEffect(() => {
-    if (!supabase) return;
-    const run = ++fetchRef.current;
-    const go = async () => {
-      let q = supabase.from("effort_entries").select("task_id, date, hours, status");
-      if (dateFrom) q = q.gte("date", dateFrom);
-      if (dateTo)   q = q.lte("date", dateTo);
-      const { data } = await q;
-      if (run === fetchRef.current && data) setRawEntries(data);
-    };
-    go();
-  }, [dateFrom, dateTo]);
 
-  // Re-fetch effort entries whenever any task changes (timer stopped, manual entry added)
   const tasksSig = tasks.map(t => t.updatedTs).join(",");
+
   useEffect(() => {
     if (!supabase) return;
     const run = ++fetchRef.current;
@@ -119,12 +107,13 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
       let q = supabase.from("effort_entries").select("task_id, date, hours, status");
       if (dateFrom) q = q.gte("date", dateFrom);
       if (dateTo)   q = q.lte("date", dateTo);
-      const { data } = await q;
-      if (run === fetchRef.current && data) setRawEntries(data);
+      const { data, error } = await q;
+      if (error) console.error("[Dashboard] effort_entries query failed:", error.message, error.details);
+      if (run === fetchRef.current) setRawEntries(data || []);
     };
     go();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasksSig]);
+  }, [dateFrom, dateTo, tasksSig]);
 
   // Index raw entries by task_id for O(1) lookup
   const entriesByTask = useMemo(() => {
@@ -141,23 +130,20 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   /* ── Date helpers ── */
   const hasDate = !!(dateFrom || dateTo);
 
-  // Committed entries come from the direct query (already date-filtered at DB level)
-  // Falls back to t.effort if supabase is unavailable
+  const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+
+  // Merge direct query (DB-level date filter) with t.effort (has optimistic updates from timer stops).
+  // Take whichever source has more entries so we always show the most complete picture.
   const committedEntries = (t) => {
-    if (supabase) return entriesByTask[t.id] || [];
-    const all = t.effort || [];
-    if (!hasDate) return all;
-    return all.filter(e => {
-      const d = (e.date || "").slice(0, 10);
-      return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
-    });
+    const direct = entriesByTask[t.id] || [];
+    const joined = (t.effort || []).filter(e =>
+      hasDate ? inRange((e.date || "").slice(0, 10)) : true
+    );
+    return direct.length >= joined.length ? direct : joined;
   };
 
   // Hours from committed entries
   const committedHours = (t) => committedEntries(t).reduce((s, e) => s + (Number(e.hours) || 0), 0);
-
-  // inRange still needed for timerStartDate check
-  const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
 
   // Live hours from a running timer — only counted when the timer start date is inside the filter range
   const timerStartDate = (t) => {
@@ -301,6 +287,11 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
           <h1 className="gx-disp" style={{ fontSize:26, fontWeight:700, margin:0 }}>Dashboard &amp; Reporting</h1>
           <p style={{ color:"var(--ink-soft)", fontSize:13, margin:"4px 0 0" }}>
             Showing effort for: <b style={{ color:"var(--pop-deep)" }}>{dateLabel}</b>
+            {rawEntries.length > 0 && (
+              <span style={{ marginLeft:10, fontSize:12, color:"var(--pop-deep)", fontWeight:600 }}>
+                · {rawEntries.length} effort {rawEntries.length === 1 ? "entry" : "entries"} found
+              </span>
+            )}
           </p>
         </div>
         {canCreate && <button className="gx-btn gx-btn-dark" onClick={onCreate}><Plus size={16}/> Create task</button>}
