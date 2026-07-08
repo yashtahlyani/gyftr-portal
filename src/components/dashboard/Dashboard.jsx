@@ -181,16 +181,26 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   // Total = committed + live
   const totalHours = (t) => committedHours(t) + liveHours(t);
 
-  /* ── Base filter: property / type / status / owner — NO date on task cards ── */
+  /* ── Base filter: property / type / status / owner + optional date ── */
   const allProps = selProps.length === PROPERTIES.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
 
-  const filtered = useMemo(() => tasks.filter(t =>
-    (allProps || selProps.includes(t.property)) &&
-    (allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0) &&
-    fStatus.includes(t.projectStatus) &&
-    (fOwner === "All" || t.owner === fOwner)
-  ), [tasks, selProps, selTypes, fStatus, fOwner]);
+  const filtered = useMemo(() => tasks.filter(t => {
+    if (!(allProps || selProps.includes(t.property))) return false;
+    if (!(allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0)) return false;
+    if (!fStatus.includes(t.projectStatus)) return false;
+    if (fOwner !== "All" && t.owner !== fOwner) return false;
+    if (hasDate) {
+      const direct = entriesByTask[t.id] || [];
+      const cached = cachedByTask[t.id] || [];
+      const joined = (t.effort || []).filter(e => inRange((e.date || "").slice(0, 10)));
+      const hasEffort = direct.length > 0 || cached.length > 0 || joined.length > 0;
+      const dueInRange = inRange(t.due) || inRange(t.expected) || inRange(t.requested);
+      return hasEffort || dueInRange;
+    }
+    return true;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [tasks, selProps, selTypes, fStatus, fOwner, hasDate, dateFrom, dateTo, entriesByTask, cachedByTask]);
 
   /* ── KPI data ── */
   const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
