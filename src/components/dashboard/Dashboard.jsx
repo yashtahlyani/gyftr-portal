@@ -181,26 +181,32 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   // Total = committed + live
   const totalHours = (t) => committedHours(t) + liveHours(t);
 
-  /* ── Base filter: property / type / status / owner + optional date ── */
+  /* ── Base filter: property / type / status / owner (no date — charts handle dates internally) ── */
   const allProps = selProps.length === PROPERTIES.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
 
-  const filtered = useMemo(() => tasks.filter(t => {
-    if (!(allProps || selProps.includes(t.property))) return false;
-    if (!(allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0)) return false;
-    if (!fStatus.includes(t.projectStatus)) return false;
-    if (fOwner !== "All" && t.owner !== fOwner) return false;
-    if (hasDate) {
+  const filtered = useMemo(() => tasks.filter(t =>
+    (allProps || selProps.includes(t.property)) &&
+    (allTypes || tArr(t).some(ty => selTypes.includes(ty)) || tArr(t).length === 0) &&
+    fStatus.includes(t.projectStatus) &&
+    (fOwner === "All" || t.owner === fOwner)
+  ), [tasks, selProps, selTypes, fStatus, fOwner, allProps, allTypes]);
+
+  /* ── KPI filter: adds date awareness on top of filtered (for counts only) ── */
+  const kpiTasks = useMemo(() => {
+    if (!hasDate) return filtered;
+    return filtered.filter(t => {
       const direct = entriesByTask[t.id] || [];
       const cached = cachedByTask[t.id] || [];
       const joined = (t.effort || []).filter(e => inRange((e.date || "").slice(0, 10)));
-      const hasEffort = direct.length > 0 || cached.length > 0 || joined.length > 0;
-      const dueInRange = inRange(t.due) || inRange(t.expected) || inRange(t.requested);
-      return hasEffort || dueInRange;
-    }
-    return true;
+      return (
+        direct.length > 0 || cached.length > 0 || joined.length > 0 ||
+        t.running ||
+        inRange(t.due) || inRange(t.expected) || inRange(t.requested)
+      );
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [tasks, selProps, selTypes, fStatus, fOwner, hasDate, dateFrom, dateTo, entriesByTask, cachedByTask]);
+  }, [filtered, hasDate, dateFrom, dateTo, entriesByTask, cachedByTask]);
 
   /* ── KPI data ── */
   const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
@@ -217,12 +223,12 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     :                                    `Until ${fmtDate(dateTo)}`;
 
   const cards = [
-    { k:"total",   label:"Total Tasks",  value:filtered.length,                  sub:"click to see all",         rows:() => filtered },
-    { k:"active",  label:"In Progress",  value:filtered.filter(isActive).length, c:"#2D7FF9", sub:"active",      rows:() => filtered.filter(isActive)  },
-    { k:"hold",    label:"On Hold",      value:filtered.filter(isHold).length,   c:"#E11D74", sub:"hold",        rows:() => filtered.filter(isHold)    },
-    { k:"done",    label:"Completed",    value:filtered.filter(isDone).length,   c:"#15803D", sub:"closed",      rows:() => filtered.filter(isDone)    },
-    { k:"overdue", label:"Overdue",      value:filtered.filter(isOverdue).length,c:"#F5A623", sub:"past due",    rows:() => filtered.filter(isOverdue) },
-    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                 c:"#067A8C", sub:hasDate ? dateLabel : "all time", rows:() => [...filtered].sort((a, b) => totalHours(b) - totalHours(a)) },
+    { k:"total",   label:"Total Tasks",  value:kpiTasks.length,                   sub:"click to see all",         rows:() => kpiTasks },
+    { k:"active",  label:"In Progress",  value:kpiTasks.filter(isActive).length,  c:"#2D7FF9", sub:"active",      rows:() => kpiTasks.filter(isActive)  },
+    { k:"hold",    label:"On Hold",      value:kpiTasks.filter(isHold).length,    c:"#E11D74", sub:"hold",        rows:() => kpiTasks.filter(isHold)    },
+    { k:"done",    label:"Completed",    value:kpiTasks.filter(isDone).length,    c:"#15803D", sub:"closed",      rows:() => kpiTasks.filter(isDone)    },
+    { k:"overdue", label:"Overdue",      value:kpiTasks.filter(isOverdue).length, c:"#F5A623", sub:"past due",    rows:() => kpiTasks.filter(isOverdue) },
+    { k:"effort",  label:"Total Effort", value:fmtH(grandTotal),                  c:"#067A8C", sub:hasDate ? dateLabel : "all time", rows:() => [...kpiTasks].sort((a, b) => totalHours(b) - totalHours(a)) },
   ];
 
   const active    = cards.find(c => c.k === drill);
