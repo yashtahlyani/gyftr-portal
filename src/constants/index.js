@@ -264,14 +264,14 @@ export const USER_BY_EMAIL = {
   "harshita.m":      "Harshita M",
   "saim.k":          "Saim",
   // Creative team
-  "ajay.k":          "Ajay Kumar",
-  "ashutosh.k":      "Ashutosh Kumar",
-  "sunil.d":         "Sunil Dhyani",
-  "amit.c":          "Amit Chauhan",
-  "shervir":         "Shervir",
-  "deepak.v":        "Deepak Verma",
-  "amit.b":          "Amit Bhattacharjee",
-  "ashish.k":        "Ashish Kumar Tiwari",
+  "ajay.k":               "Ajay Kumar",
+  "ashutosh.j":           "Ashutosh Kumar",
+  "sunil.d":              "Sunil Dhyani",
+  "amit.c":               "Amit Chauhan",
+  "shervir":              "Shervir",
+  "deepak.verma":         "Deepak Verma",
+  "amit.bhattacharjee":   "Amit Bhattacharjee",
+  "ashish.t":             "Ashish Kumar Tiwari",
 };
 
 export const TASK_TYPES = [

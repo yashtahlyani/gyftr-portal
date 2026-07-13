@@ -11,7 +11,7 @@ import { CURRENT_USER, USER_BY_EMAIL } from "../constants";
 const SUPER_ADMIN_EMAILS  = ["anirudh.motwani", "yash.tahlyani"];
 const CONTENT_MGR_EMAILS  = ["deepankar.h"];
 const CREATIVE_MGR_EMAILS = ["ajay.k"];
-const CREATIVE_EMAILS     = new Set(["ajay.k","ashutosh.k","sunil.d","amit.c","shervir","deepak.v","amit.b","ashish.k"]);
+const CREATIVE_EMAILS     = new Set(["ajay.k","ashutosh.j","sunil.d","amit.c","shervir","deepak.verma","amit.bhattacharjee","ashish.t"]);
 
 function deriveRoleAndTeam(emailPrefix) {
   const e = emailPrefix.toLowerCase();
