@@ -2,8 +2,8 @@
 import React, { useState, useMemo } from "react";
 import { Search, AlertTriangle, Clock, X, FileText, Plus, RefreshCw } from "lucide-react";
 import { Avatar, StatusChip, Caret } from "../ui";
-import { PROPERTIES, PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
-import { PROP_COLOR } from "../../constants";
+import { PROPERTIES, CREATIVE_PROPERTIES, PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
+import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { STATUS } from "../../constants";
 import { agingDays, fmtHrs, fmtDate, taskNo, totalEffort, plusDays, TODAY_ISO, dayDiff } from "../../utils";
 
@@ -18,7 +18,10 @@ function StatusBar({ items }) {
   );
 }
 
-export function Admin({ tasks, openDrawer }) {
+export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
+  const isCreative   = userTeam === "Creative";
+  const propList     = isCreative ? CREATIVE_PROPERTIES : PROPERTIES;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR : PROP_COLOR;
   const [mode,    setMode]    = useState("person");
   const [sel,     setSel]     = useState(null);
   const [selProp, setSelProp] = useState(null);
@@ -38,7 +41,7 @@ export function Admin({ tasks, openDrawer }) {
   const addCustomProp = () => {
     const name = newPropInput.trim();
     if (!name) return;
-    if (PROPERTIES.includes(name)) {
+    if (propList.includes(name)) {
       alert(`"${name}" already exists in the property list.`);
       return;
     }
@@ -80,7 +83,7 @@ export function Admin({ tasks, openDrawer }) {
     weekHours: items.reduce((s,t)=>s+(t.effort||[]).filter(e=>e.date>=weekFrom&&e.date<=TODAY_ISO).reduce((a,e)=>a+(Number(e.hours)||0),0),0),
   });
 
-  const propData = PROPERTIES.map(p=>{
+  const propData = propList.map(p=>{
     const items = rangedTasks.filter(t=>t.property===p);
     const ownerHours = {};
     items.forEach(t=>{ ownerHours[t.owner]=(ownerHours[t.owner]||0)+totalEffortR(t.effort); });
@@ -124,11 +127,11 @@ export function Admin({ tasks, openDrawer }) {
         {propData.map(({ p, items, total, hours, weekHours, active, hold, done, overdue, topOwners, topTypes })=>{
           const on = selProp===p;
           return (
-            <div key={p} className="gx-card" onClick={()=>setSelProp(on?null:p)} style={{ cursor:"pointer", overflow:"hidden", transition:".15s", outline:on?`2px solid ${PROP_COLOR[p]||"#7A8A80"}`:"2px solid transparent", boxShadow:on?`0 12px 28px -10px ${(PROP_COLOR[p]||"#7A8A80")}66`:"none", transform:on?"translateY(-2px)":"none" }}>
-              <div style={{ height:4, background:PROP_COLOR[p]||"#7A8A80" }}/>
+            <div key={p} className="gx-card" onClick={()=>setSelProp(on?null:p)} style={{ cursor:"pointer", overflow:"hidden", transition:".15s", outline:on?`2px solid ${propColorMap[p]||"#7A8A80"}`:"2px solid transparent", boxShadow:on?`0 12px 28px -10px ${(propColorMap[p]||"#7A8A80")}66`:"none", transform:on?"translateY(-2px)":"none" }}>
+              <div style={{ height:4, background:propColorMap[p]||"#7A8A80" }}/>
               <div style={{ padding:"12px 14px 13px" }}>
                 <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between" }}>
-                  <span className="gx-disp" style={{ fontSize:19, fontWeight:800, color:PROP_COLOR[p]||"#7A8A80" }}>{p}</span>
+                  <span className="gx-disp" style={{ fontSize:19, fontWeight:800, color:propColorMap[p]||"#7A8A80" }}>{p}</span>
                   <span style={{ fontSize:11.5, fontWeight:700, color:"var(--ink-soft)" }}>{total} task{total===1?"":"s"}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"baseline", gap:6, margin:"2px 0 9px" }}>
@@ -176,7 +179,7 @@ export function Admin({ tasks, openDrawer }) {
                   <StatusChip status={t.projectStatus}/>
                 </div>
                 <div style={{ fontSize:13, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  <span style={{ color:PROP_COLOR[t.property]||"#7A8A80", fontWeight:700 }}>{t.property}</span> · {t.task}
+                  <span style={{ color:propColorMap[t.property]||"#7A8A80", fontWeight:700 }}>{t.property}</span> · {t.task}
                 </div>
                 <div style={{ fontSize:11.5, color:"var(--ink-soft)", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.owner} · {t.update?.description||"no note logged"}</div>
               </div>
@@ -208,7 +211,7 @@ export function Admin({ tasks, openDrawer }) {
           <input className="gx-input" style={{ paddingLeft:32 }} placeholder={mode==="person"?"Search a person…":mode==="type"?"Search a task type…":"Search a status…"} value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
         {selProp && (
-          <span className="gx-chip" style={{ background:(PROP_COLOR[selProp]||"#7A8A80")+"22", color:PROP_COLOR[selProp]||"#7A8A80", fontWeight:700, fontSize:12, padding:"5px 10px" }}>
+          <span className="gx-chip" style={{ background:(propColorMap[selProp]||"#7A8A80")+"22", color:propColorMap[selProp]||"#7A8A80", fontWeight:700, fontSize:12, padding:"5px 10px" }}>
             Scoped to {selProp} <X size={12} style={{ cursor:"pointer", marginLeft:4 }} onClick={e=>{ e.stopPropagation(); setSelProp(null); }}/>
           </span>
         )}
@@ -241,7 +244,7 @@ export function Admin({ tasks, openDrawer }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
                   {g.items.slice(0,4).map(t=>(
                     <div key={t.id} style={{ display:"flex", alignItems:"center", gap:7, fontSize:12.5 }}>
-                      <span style={{ width:7, height:7, borderRadius:99, background:PROP_COLOR[t.property]||"#7A8A80", flex:"none" }}/>
+                      <span style={{ width:7, height:7, borderRadius:99, background:propColorMap[t.property]||"#7A8A80", flex:"none" }}/>
                       <Avatar name={t.owner} size={18}/>
                       <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.task}</span>
                       <span className="gx-mono" style={{ color:"#067A8C", fontWeight:600 }}>{fmtHrs(totalEffortR(t.effort))}</span>
@@ -254,7 +257,7 @@ export function Admin({ tasks, openDrawer }) {
             );
           }
           const low      = st.active>0 && st.weekHours<1;
-          const propMix  = PROPERTIES.map(p=>({ p, n:g.items.filter(t=>t.property===p).length })).filter(x=>x.n>0);
+          const propMix  = propList.map(p=>({ p, n:g.items.filter(t=>t.property===p).length })).filter(x=>x.n>0);
           return (
             <div key={g.key} className="gx-card" onClick={()=>setSel(on?null:g.key)} style={{ padding:16, cursor:"pointer", outline:on?"2px solid var(--pop)":"2px solid transparent", transition:".15s" }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
@@ -277,8 +280,8 @@ export function Admin({ tasks, openDrawer }) {
               {propMix.length>0 && (
                 <div style={{ display:"flex", gap:5, marginTop:10, paddingTop:9, borderTop:"1px solid var(--line-soft)", flexWrap:"wrap" }}>
                   {propMix.map(x=>(
-                    <span key={x.p} className="gx-chip" style={{ background:(PROP_COLOR[x.p]||"#7A8A80")+"22", color:PROP_COLOR[x.p]||"#7A8A80", fontSize:10.5, padding:"3px 8px", fontWeight:700 }}>
-                      <span style={{ width:6, height:6, borderRadius:99, background:PROP_COLOR[x.p]||"#7A8A80" }}/>{x.p} · {x.n}
+                    <span key={x.p} className="gx-chip" style={{ background:(propColorMap[x.p]||"#7A8A80")+"22", color:propColorMap[x.p]||"#7A8A80", fontSize:10.5, padding:"3px 8px", fontWeight:700 }}>
+                      <span style={{ width:6, height:6, borderRadius:99, background:propColorMap[x.p]||"#7A8A80" }}/>{x.p} · {x.n}
                     </span>
                   ))}
                 </div>
@@ -312,7 +315,7 @@ export function Admin({ tasks, openDrawer }) {
               {selItems.map(t=>{ const ag=agingDays(t); return (
                 <tr key={t.id} className="gx-row" style={{ cursor:"pointer" }} onClick={()=>openDrawer(t.id,"Update")}>
                   <td className="gx-td gx-mono" style={{ color:"var(--ink-soft)" }}>{taskNo(t)}</td>
-                  <td className="gx-td"><span style={{ fontSize:11, fontWeight:700, color:PROP_COLOR[t.property]||"#7A8A80", background:(PROP_COLOR[t.property]||"#7A8A80")+"22", padding:"3px 9px", borderRadius:7 }}>{t.property}</span></td>
+                  <td className="gx-td"><span style={{ fontSize:11, fontWeight:700, color:propColorMap[t.property]||"#7A8A80", background:(propColorMap[t.property]||"#7A8A80")+"22", padding:"3px 9px", borderRadius:7 }}>{t.property}</span></td>
                   <td className="gx-td" style={{ fontWeight:600 }}>{t.task}</td>
                   <td className="gx-td" style={{ fontSize:12.5 }}>{mode==="person" ? <span style={{ fontWeight:600, color:"var(--ink-soft)", background:"#EAF1EB", padding:"3px 9px", borderRadius:7 }}>{(Array.isArray(t.type)?t.type:t.type?[t.type]:[]).join(", ")||"—"}</span> : <span style={{ display:"flex", alignItems:"center", gap:7 }}><Avatar name={t.owner} size={20}/>{t.owner}</span>}</td>
                   <td className="gx-td"><StatusChip status={t.projectStatus}/></td>
@@ -332,7 +335,7 @@ export function Admin({ tasks, openDrawer }) {
           onClick={() => setPropMgmtOpen(o => !o)}
         >
           <b className="gx-disp" style={{ fontSize:14 }}>Manage Properties</b>
-          <span style={{ fontSize:11.5, color:"var(--ink-soft)" }}>{PROPERTIES.length} in list · {customProps.length} custom</span>
+          <span style={{ fontSize:11.5, color:"var(--ink-soft)" }}>{propList.length} in list · {customProps.length} custom</span>
           <span style={{ marginLeft:"auto", fontSize:12, color:"var(--pop)", fontWeight:700 }}>{propMgmtOpen ? "▲ Close" : "▼ Open"}</span>
         </div>
         {propMgmtOpen && (

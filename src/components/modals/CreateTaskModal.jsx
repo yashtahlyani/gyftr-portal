@@ -101,11 +101,11 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
   }),[tasks,selTypes,selProps,avDays]);
 
   const activeCols = useMemo(()=>{ const seen=new Set(pool.flatMap(t=>tArr(t))); return TASK_TYPES.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes]);
-  const memberData = ownerList.map(owner=>{ const memberTasks=pool.filter(t=>t.owner===owner); const propRows=selProps.map(prop=>({ prop, ...buildRow(memberTasks.filter(t=>t.property===prop)) })); return { owner, propRows, total:buildRow(memberTasks) }; });
   const heat = (n)=>{ if(n===0) return { bg:"transparent", fg:"#b0bfb6" }; if(n===1) return { bg:"#E8F5E9", fg:"#2E7D32" }; if(n===2) return { bg:"#C8E6C9", fg:"#1B5E20" }; if(n<=4) return { bg:"#FFF3E0", fg:"#E65100" }; return { bg:"#FFEBEE", fg:"#C62828" }; };
   const sNear = (dues)=>{ if(!dues.length) return ""; const sorted=[...dues].sort(); const d=dayDiff(TODAY_ISO,sorted[0]); if(d<0) return `${Math.abs(d)}d late`; if(d===0) return "today"; return `in ${d}d`; };
   const dueColor = (d)=>{ if(!d) return "#b0bfb6"; const diff=dayDiff(TODAY_ISO,d); if(diff<0) return "#C42424"; if(diff<=1) return "#E65100"; return "#15803D"; };
   const buildRow = (items)=>{ const byType={}; activeCols.forEach(c=>{ byType[c]={ n:0, dues:[] }; }); let totalTasks=0,totalHrs=0,allDues=[]; items.forEach(t=>{ tArr(t).forEach(ty=>{ if(byType[ty]){ byType[ty].n++; if(t.due) byType[ty].dues.push(t.due); } }); totalTasks++; totalHrs+=totalEffort(t.effort); if(t.due) allDues.push(t.due); }); allDues.sort(); return { byType, totalTasks, totalHrs, nearestDue:allDues[0]||"" }; };
+  const memberData = ownerList.map(owner=>{ const memberTasks=pool.filter(t=>t.owner===owner); const propRows=selProps.map(prop=>({ prop, ...buildRow(memberTasks.filter(t=>t.property===prop)) })); return { owner, propRows, total:buildRow(memberTasks) }; });
   const grandTotal = buildRow(pool);
 
   return (

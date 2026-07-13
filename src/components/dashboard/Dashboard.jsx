@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Plus, ChevronDown, Clock, CalendarDays } from "lucide-react";
 import { Avatar, StatusChip } from "../ui";
-import { PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR } from "../../constants";
+import { PROPERTIES, CREATIVE_PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { typeColor, fmtDate, fmtHrs, agingDays, taskNo, TODAY_ISO } from "../../utils";
 import { supabase } from "../../lib/supabase";
 
@@ -25,11 +25,11 @@ const fmtH = (h) => {
 const UNTYPED       = "General";
 const UNTYPED_COLOR = "#94a59b";
 // Color priority: PROP_COLOR first (property-bucketed entries), then TYPE_PALETTE, then grey
-const tColor = (b) => b === UNTYPED ? UNTYPED_COLOR : (PROP_COLOR[b] || typeColor(b));
+const tColor = (b, colorMap = PROP_COLOR) => b === UNTYPED ? UNTYPED_COLOR : (colorMap[b] || typeColor(b));
 const tArr   = (t) => Array.isArray(t.type) ? t.type.filter(Boolean) : t.type ? [t.type] : [];
 
 /* ── Type / property legend ── */
-function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types" }) {
+function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types", colorMap = PROP_COLOR }) {
   return (
     <div style={{ flex:"0 0 180px", borderLeft:"1px solid var(--line)", paddingLeft:14 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
@@ -44,7 +44,7 @@ function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types" }) {
           return (
             <div key={t} onClick={() => onToggle(t)}
               style={{ display:"flex", alignItems:"center", gap:8, padding:"3px 5px", borderRadius:6, cursor:"pointer", background:on?"#F1F6F1":"transparent" }}>
-              <span style={{ width:11, height:11, borderRadius:3, flex:"none", background:on?tColor(t):"transparent", border:on?"none":"1.5px solid #c4cfc7" }}/>
+              <span style={{ width:11, height:11, borderRadius:3, flex:"none", background:on?tColor(t,colorMap):"transparent", border:on?"none":"1.5px solid #c4cfc7" }}/>
               <span style={{ fontSize:11.5, fontWeight:600, color:on?"var(--ink)":"var(--ink-soft)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t}</span>
             </div>
           );
@@ -75,9 +75,13 @@ function HourTooltip({ active, payload, label }) {
   );
 }
 
-export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
+export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "Content" }) {
+  const isCreative   = userTeam === "Creative";
+  const propList     = isCreative ? CREATIVE_PROPERTIES : PROPERTIES;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR : PROP_COLOR;
+
   const [drill,          setDrill]          = useState(null);
-  const [selProps,       setSelProps]       = useState(PROPERTIES.slice());
+  const [selProps,       setSelProps]       = useState(() => propList.slice());
   const [selTypes,       setSelTypes]       = useState(TASK_TYPES.slice());
   const [chartTypes,     setChartTypes]     = useState([...TASK_TYPES, UNTYPED]);
   const [propMenuOpen,   setPropMenuOpen]   = useState(false);
@@ -183,7 +187,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const totalHours = (t) => committedHours(t) + liveHours(t);
 
   /* ── Base filter: property / type / status / owner (no date — charts handle dates internally) ── */
-  const allProps = selProps.length === PROPERTIES.length;
+  const allProps = selProps.length === propList.length;
   const allTypes = selTypes.length === TASK_TYPES.length;
 
   const filtered = useMemo(() => tasks.filter(t =>
@@ -297,9 +301,9 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
     .map(s => ({ name:s, value:kpiTasks.filter(t => t.projectStatus === s).length, fill:STATUS[s].dot }))
     .filter(d => d.value > 0);
 
-  const overdueByProp = PROPERTIES
+  const overdueByProp = propList
     .filter(p => selProps.includes(p))
-    .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:PROP_COLOR[p] }))
+    .map(p => ({ name:p, count:kpiTasks.filter(t => t.property === p && agingDays(t) > 0).length, fill:propColorMap[p] }))
     .filter(d => d.count > 0);
 
   // Chart 1 (Hours per day): bucket by PROPERTY — every task has a property, so bars are always colored
@@ -353,7 +357,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   });
 
   const dateData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({ ...d, name: fmtDate(d.date) }));
-  const propData = PROPERTIES.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
+  const propData = propList.filter(p => selProps.includes(p) && propMap[p]).map(p => propMap[p]);
 
   const keysOf = (rows) => {
     const s = new Set();
@@ -379,13 +383,13 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
   const toggleChart = (t) => setChartTypes(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
   const toggleProp  = (p) => setSelProps(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
   const toggleStat  = (s) => setFStatus(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
-  const clearAll    = () => { setDateFrom(""); setDateTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(PROPERTIES.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes([...TASK_TYPES, UNTYPED]); setDrill(null); };
+  const clearAll    = () => { setDateFrom(""); setDateTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(propList.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes([...TASK_TYPES, UNTYPED]); setDrill(null); };
   const setToday    = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
 
   const hasFilter = hasDate || fStatus.length !== STATUS_LIST.length || fOwner !== "All" || !allProps || !allTypes;
 
   const PropTick = ({ x, y, payload }) => (
-    <text x={x} y={y + 14} textAnchor="middle" fontSize={12} fontWeight={800} fill={PROP_COLOR[payload.value] || "#586860"}>{payload.value}</text>
+    <text x={x} y={y + 14} textAnchor="middle" fontSize={12} fontWeight={800} fill={propColorMap[payload.value] || "#586860"}>{payload.value}</text>
   );
 
   return (
@@ -438,7 +442,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
         {/* Property */}
         <div style={{ position:"relative" }}>
           <button className="gx-btn gx-btn-ghost" onClick={() => setPropMenuOpen(o => !o)} style={{ border:"1px solid var(--line)", padding:"7px 11px", fontSize:12.5 }}>
-            Property: <b style={{ marginLeft:3 }}>{allProps ? "All" : selProps.length === 0 ? "None" : selProps.length === 1 ? selProps[0] : `${selProps.length} of ${PROPERTIES.length}`}</b>
+            Property: <b style={{ marginLeft:3 }}>{allProps ? "All" : selProps.length === 0 ? "None" : selProps.length === 1 ? selProps[0] : `${selProps.length} of ${propList.length}`}</b>
             <ChevronDown size={13} style={{ marginLeft:3 }}/>
           </button>
           {propMenuOpen && (<>
@@ -446,12 +450,12 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
             <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:6, padding:10, width:220, maxHeight:340, overflowY:"auto", boxShadow:"0 18px 50px -12px rgba(0,0,0,.3)" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                 <b style={{ fontSize:11, color:"var(--ink-soft)", textTransform:"uppercase" }}>Property</b>
-                <span style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={() => setSelProps(allProps ? [] : PROPERTIES.slice())}>{allProps ? "Clear" : "All"}</span>
+                <span style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={() => setSelProps(allProps ? [] : propList.slice())}>{allProps ? "Clear" : "All"}</span>
               </div>
-              {PROPERTIES.map(p => { const on = selProps.includes(p); return (
+              {propList.map(p => { const on = selProps.includes(p); return (
                 <div key={p} onClick={() => toggleProp(p)} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 4px", borderRadius:6, cursor:"pointer" }}>
-                  <span style={{ width:12, height:12, borderRadius:3, background:on ? PROP_COLOR[p] : "transparent", border:on ? "none" : "1.5px solid #c4cfc7", flex:"none" }}/>
-                  <span style={{ fontSize:13, fontWeight:700, color:on ? PROP_COLOR[p] : "var(--ink-soft)" }}>{p}</span>
+                  <span style={{ width:12, height:12, borderRadius:3, background:on ? propColorMap[p] : "transparent", border:on ? "none" : "1.5px solid #c4cfc7", flex:"none" }}/>
+                  <span style={{ fontSize:13, fontWeight:700, color:on ? propColorMap[p] : "var(--ink-soft)" }}>{p}</span>
                 </div>
               );})}
             </div>
@@ -542,7 +546,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
                 {drillRows.map(t => { const ag = agingDays(t); const live = liveHours(t); return (
                   <tr key={t.id} className="gx-row" style={{ cursor:"pointer" }} onClick={() => openDrawer(t.id, "Update")}>
                     <td className="gx-td gx-mono" style={{ color:"var(--ink-soft)" }}>{taskNo(t)}</td>
-                    <td className="gx-td"><span style={{ fontWeight:700, color:PROP_COLOR[t.property] }}>{t.property}</span></td>
+                    <td className="gx-td"><span style={{ fontWeight:700, color:propColorMap[t.property] }}>{t.property}</span></td>
                     <td className="gx-td" style={{ fontWeight:600 }}>{t.task}</td>
                     <td className="gx-td"><div style={{ display:"flex", alignItems:"center", gap:6 }}><Avatar name={t.owner} size={18}/>{t.owner}</div></td>
                     <td className="gx-td"><StatusChip status={t.projectStatus}/></td>
@@ -593,7 +597,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={overdueByProp}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#EEF4EF" vertical={false}/>
-                <XAxis dataKey="name" tick={({ x, y, payload }) => <text x={x} y={y+14} fontSize={12} fontWeight={800} fill={PROP_COLOR[payload.value]||"#586860"} textAnchor="middle">{payload.value}</text>} axisLine={false} tickLine={false}/>
+                <XAxis dataKey="name" tick={({ x, y, payload }) => <text x={x} y={y+14} fontSize={12} fontWeight={800} fill={propColorMap[payload.value]||"#586860"} textAnchor="middle">{payload.value}</text>} axisLine={false} tickLine={false}/>
                 <YAxis tick={{ fontSize:11, fill:"#94a59b" }} axisLine={false} tickLine={false} allowDecimals={false}/>
                 <Tooltip contentStyle={{ borderRadius:10, fontSize:12 }} formatter={v => [v, "Tasks"]}/>
                 <Bar dataKey="count" radius={[7,7,0,0]}>{overdueByProp.map((d, i) => <Cell key={i} fill={d.fill}/>)}</Bar>
@@ -617,7 +621,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
                   <YAxis tickFormatter={v => `${v}h`} tick={{ fontSize:11, fill:"#94a59b" }} axisLine={false} tickLine={false}/>
                   <Tooltip content={<HourTooltip/>}/>
                   {propsInDateData.map((p, i, arr) => (
-                    <Bar key={p} dataKey={p} stackId="d" fill={PROP_COLOR[p] || UNTYPED_COLOR} radius={i === arr.length - 1 ? [5,5,0,0] : [0,0,0,0]}/>
+                    <Bar key={p} dataKey={p} stackId="d" fill={propColorMap[p] || UNTYPED_COLOR} radius={i === arr.length - 1 ? [5,5,0,0] : [0,0,0,0]}/>
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -627,8 +631,8 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </div>
             )}
           </div>
-          <TypeLegend header="Properties" types={propsInDateData} sel={selProps} onToggle={toggleProp}
-            onAll={() => setSelProps(selProps.length === PROPERTIES.length ? [] : PROPERTIES.slice())}/>
+          <TypeLegend header="Properties" types={propsInDateData} sel={selProps} onToggle={toggleProp} colorMap={propColorMap}
+            onAll={() => setSelProps(selProps.length === propList.length ? [] : propList.slice())}/>
         </div>
       </div>
 
@@ -656,7 +660,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate }) {
               </div>
             )}
           </div>
-          <TypeLegend header="Task Types" types={legendTypes} sel={chartTypes} onToggle={toggleChart}
+          <TypeLegend header="Task Types" types={legendTypes} sel={chartTypes} onToggle={toggleChart} colorMap={propColorMap}
             onAll={() => setChartTypes(chartTypes.length === [...TASK_TYPES,UNTYPED].length ? [] : [...TASK_TYPES,UNTYPED])}/>
         </div>
       </div>

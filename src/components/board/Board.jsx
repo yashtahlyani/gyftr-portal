@@ -5,10 +5,13 @@ import {
   StatusChip, PriorityChip, ChipMenu, TextCell, DateCell, EffortAddCell, TimerCell, LockCell, Avatar, Caret,
 } from "../ui";
 import {
-  PROPERTIES, PROJECT_STATUS_LIST, EFFORT_STATUS_LIST, OWNERS, BUSINESS_OWNERS,
+  PROPERTIES, CREATIVE_PROPERTIES,
+  PROJECT_STATUS_LIST, EFFORT_STATUS_LIST,
+  OWNERS, CREATIVE_OWNERS,
+  BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
   PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CURRENT_USER,
 } from "../../constants";
-import { PROP_COLOR } from "../../constants";
+import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_ISO } from "../../utils";
 
 const COLS = [
@@ -78,11 +81,16 @@ function TypeSelect({ value, onChange }) {
 // window (e.g. ?idletest=30 → pause after 30s idle, check every 5s). Only the
 // person using that URL is affected; everyone else keeps the normal 20 min.
 const IDLE_TEST_SEC = Number(new URLSearchParams(window.location.search).get("idletest"));
-const INACTIVITY_MS = IDLE_TEST_SEC > 0 ? IDLE_TEST_SEC * 1000 : 20 * 60 * 1000;
+const INACTIVITY_MS = IDLE_TEST_SEC > 0 ? IDLE_TEST_SEC * 1000 : 30 * 60 * 1000;
 const HB_KEY = (id) => `gyftr_hb_${id}`;
 
-export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh }) {
-  const isManager = role === "manager";
+export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh, userTeam = "Content" }) {
+  const isManager = role === "manager" || role === "super_admin";
+  const isCreative   = userTeam === "Creative";
+  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
+  const ownerList    = isCreative ? CREATIVE_OWNERS      : OWNERS;
+  const bizOwnerList = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
   const [q,             setQ]             = useState("");
   const [fProp,         setFProp]         = useState("All");
   const [fStatus,       setFStatus]       = useState("All");
@@ -267,10 +275,10 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
             value={q} onChange={e=>setQ(e.target.value)}/>
         </div>
         {[
-          { val:fProp,     set:setFProp,     label:"Property",   opts:PROPERTIES,         prefix:"Property"   },
+          { val:fProp,     set:setFProp,     label:"Property",   opts:propList,           prefix:"Property"   },
           { val:fStatus,   set:setFStatus,   label:"Status",     opts:PROJECT_STATUS_LIST, prefix:"Status"     },
-          { val:fAssignee, set:setFAssignee, label:"Assigned to",opts:OWNERS,              prefix:"Assigned to"},
-          { val:fBizOwner, set:setFBizOwner, label:"Biz Owner",  opts:BUSINESS_OWNERS,    prefix:"Biz Owner"  },
+          { val:fAssignee, set:setFAssignee, label:"Assigned to",opts:ownerList,           prefix:"Assigned to"},
+          { val:fBizOwner, set:setFBizOwner, label:"Biz Owner",  opts:bizOwnerList,       prefix:"Biz Owner"  },
           { val:fPri,      set:setFPri,      label:"Priority",   opts:PRIORITY_LIST,      prefix:"Priority"   },
         ].map(({ val, set, label, opts, prefix }) => (
           <div key={prefix} style={{ position:"relative" }}>
@@ -333,10 +341,10 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Property */}
                     <td className="gx-td" style={{ position:"relative" }}>
                       {isManager
-                        ? <select className="gx-sel" style={{ fontWeight:700, color:PROP_COLOR[t.property] }} value={t.property} onChange={e=>patch(t.id,{property:e.target.value},`Property → ${e.target.value}`)}>
-                            {PROPERTIES.map(p=><option key={p}>{p}</option>)}
+                        ? <select className="gx-sel" style={{ fontWeight:700, color:propColorMap[t.property] }} value={t.property} onChange={e=>patch(t.id,{property:e.target.value},`Property → ${e.target.value}`)}>
+                            {propList.map(p=><option key={p}>{p}</option>)}
                           </select>
-                        : <span style={{ fontWeight:700, color:PROP_COLOR[t.property] }}>{t.property}</span>}
+                        : <span style={{ fontWeight:700, color:propColorMap[t.property] }}>{t.property}</span>}
                     </td>
 
                     {/* Task */}
@@ -368,7 +376,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                         <Avatar name={t.owner} size={20}/>
                         {isManager
                           ? <select className="gx-sel" value={t.owner||""} onChange={e=>patch(t.id,{owner:e.target.value},`Reassigned to ${e.target.value}`)}>
-                              {OWNERS.map(o=><option key={o}>{o}</option>)}
+                              {ownerList.map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.owner}</span>}
                       </div>
@@ -380,7 +388,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                         <Avatar name={t.businessOwner} size={20}/>
                         {isManager
                           ? <select className="gx-sel" value={t.businessOwner||""} onChange={e=>patch(t.id,{businessOwner:e.target.value},`Business owner → ${e.target.value}`)}>
-                              {BUSINESS_OWNERS.map(o=><option key={o}>{o}</option>)}
+                              {bizOwnerList.map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.businessOwner}</span>}
                       </div>
@@ -480,7 +488,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
           <span style={{ color:"#586860", fontWeight:700 }}>grey</span> = locked,{" "}
           <span style={{ color:"#C42424", fontWeight:700 }}>red</span> = team has requested an unlock.
           Manual hour entries always appear in <span style={{ color:"#C42424", fontWeight:700 }}>red</span> in the effort breakdown.
-          The timer <b>auto-stops if the laptop sleeps for 20+ min</b> and logs the hours automatically — start it again to continue tracking.
+          The timer <b>auto-stops if the laptop sleeps for 30+ min</b> and logs the hours automatically — start it again to continue tracking.
         </div>
       </div>
     </div>

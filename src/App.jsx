@@ -53,7 +53,7 @@ export default function App() {
     // Filter to the active team first (super admin can also pick "All")
     const teamFiltered = (isSuperAdmin && teamView === "All")
       ? tasks
-      : tasks.filter(t => t.team === activeTeam);
+      : tasks.filter(t => (t.team || "Content") === activeTeam);
 
     // Managers and super-admins see all tasks in scope
     if (isManager) return teamFiltered;
@@ -151,13 +151,13 @@ export default function App() {
       {/* Main */}
       <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--paper)" }}>
         {view==="dashboard" && (
-          <Dashboard tasks={visibleTasks} onCreate={isManager?()=>setCreateOpen(true):undefined} openDrawer={openDrawer} canCreate={isManager}/>
+          <Dashboard key={activeTeam} tasks={visibleTasks} onCreate={isManager?()=>setCreateOpen(true):undefined} openDrawer={openDrawer} canCreate={isManager} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
         )}
         {view==="board" && (
-          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role} onRefresh={fetchTasks}/>
+          <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role} onRefresh={fetchTasks} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
         )}
         {view==="admin" && isManager && (
-          <Admin tasks={visibleTasks} openDrawer={openDrawer}/>
+          <Admin tasks={visibleTasks} openDrawer={openDrawer} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
         )}
       </main>
 

@@ -2,11 +2,12 @@
 import React, { useRef, useState } from "react";
 import { Plus, X, CalendarDays, Link } from "lucide-react";
 import { Caret } from "../ui";
-import { OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
+import { OWNERS, CREATIVE_OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
 import { teamOf, fmtDate, fmtHrs, TODAY_ISO } from "../../utils";
 
 export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, addComment, isManager }) {
   const u = task.update || {};
+  const ownerList = task.team === "Creative" ? CREATIVE_OWNERS : OWNERS;
   const descRef = useRef(null);
   const [linkUrl,  setLinkUrl]  = useState("");
   const [linkDesc, setLinkDesc] = useState("");
@@ -87,7 +88,7 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, add
             <select className="gx-input" style={{ appearance:"none", cursor:"pointer", paddingRight:30 }}
               value={task.owner||""} onChange={e=>patch(task.id,{ owner:e.target.value },`Reassigned to ${e.target.value}`)}>
               <option value="">Select…</option>
-              {OWNERS.map(o=><option key={o}>{o}</option>)}
+              {ownerList.map(o=><option key={o}>{o}</option>)}
             </select><Caret/>
           </div>
           <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:5 }}>
