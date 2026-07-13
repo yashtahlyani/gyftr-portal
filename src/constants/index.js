@@ -93,7 +93,7 @@ export const PROPERTIES = [
   ..._customProps.filter(p => !_STATIC_PROPERTIES.includes(p)),
 ];
 
-export const TEAMS           = ["Content"];
+// ── Content team ──────────────────────────────────────────────────────────────
 export const OWNERS          = [
   "Deepankar Hemnani",
   "Sakshi Sharma",
@@ -107,22 +107,152 @@ export const OWNERS          = [
 ];
 export const BUSINESS_OWNERS = ["Deepankar Hemnani", "Anirudh Motwani"];
 
+// ── Creative team ─────────────────────────────────────────────────────────────
+export const CREATIVE_OWNERS = [
+  "Ajay Kumar",
+  "Ashutosh Kumar",
+  "Sunil Dhyani",
+  "Amit Chauhan",
+  "Shervir",
+  "Deepak Verma",
+  "Amit Bhattacharjee",
+  "Ashish Kumar Tiwari",
+];
+export const CREATIVE_BUSINESS_OWNERS = ["Ajay Kumar", "Anirudh Motwani"];
+
+export const CREATIVE_PROPERTIES = [
+  "GyFTR",
+  "Kotak Instant Vouchers",
+  "IRCTC",
+  "SBI Yono",
+  "HDFC - Instant Vouchers",
+  "Nexus",
+  "Axis Edge",
+  "Indusind",
+  "RBL Bank Offers",
+  "HSBC Insta Benefits",
+  "Amex Reward",
+  "BFL",
+  "Hello BPCL",
+  "BPCL MAK",
+  "Zillion",
+  "Reward Program",
+  "Shopplus",
+  "SC-Insta",
+  "Yescart",
+  "Prism - Gold",
+  "Prism - Aspire",
+  "YesRewardz",
+  "SBI Card",
+  "Hp Pay",
+  "Prism",
+  "Wonder Cement",
+  "AU Bank",
+  "Visa",
+  "DBS",
+  "Bosch",
+  "Prince Pipe",
+  "Prism Anmol Rishtey",
+  "Indus Moment",
+  "IDFC",
+  "Federal",
+  "Hp Drive Track Plus",
+  "SBI Simply Click",
+  "Godrej One",
+  "Ultratech",
+  "Evolve",
+  "Airtel",
+  "Sintex",
+  "Zomato",
+  "Xtra Reward",
+  "Luminous",
+  "Money Control",
+  "Pocket FM",
+  "Common",
+  "Cera Superstar",
+];
+
+export const CREATIVE_PROP_COLOR = {
+  "GyFTR":                   "#7C3AED",
+  "Kotak Instant Vouchers":  "#F59E0B",
+  "IRCTC":                   "#DC2626",
+  "SBI Yono":                "#059669",
+  "HDFC - Instant Vouchers": "#0277BD",
+  "Nexus":                   "#8B5CF6",
+  "Axis Edge":               "#B91C1C",
+  "Indusind":                "#E11D74",
+  "RBL Bank Offers":         "#4338CA",
+  "HSBC Insta Benefits":     "#991B1B",
+  "Amex Reward":             "#283593",
+  "BFL":                     "#EF4444",
+  "Hello BPCL":              "#155E75",
+  "BPCL MAK":                "#78350F",
+  "Zillion":                 "#A855F7",
+  "Reward Program":          "#831843",
+  "Shopplus":                "#0EA5E9",
+  "SC-Insta":                "#0891B2",
+  "Yescart":                 "#84CC16",
+  "Prism - Gold":            "#CA8A04",
+  "Prism - Aspire":          "#EC4899",
+  "YesRewardz":              "#9D174D",
+  "SBI Card":                "#D97706",
+  "Hp Pay":                  "#14532D",
+  "Prism":                   "#F97316",
+  "Wonder Cement":           "#4D7C0F",
+  "AU Bank":                 "#0F766E",
+  "Visa":                    "#3B82F6",
+  "DBS":                     "#C2410C",
+  "Bosch":                   "#9A3412",
+  "Prince Pipe":             "#5B21B6",
+  "Prism Anmol Rishtey":     "#EA580C",
+  "Indus Moment":            "#DB2777",
+  "IDFC":                    "#9333EA",
+  "Federal":                 "#312E81",
+  "Hp Drive Track Plus":     "#581C87",
+  "SBI Simply Click":        "#134E4A",
+  "Godrej One":              "#5E35B1",
+  "Ultratech":               "#374151",
+  "Evolve":                  "#10B981",
+  "Airtel":                  "#E53935",
+  "Sintex":                  "#1E3A8A",
+  "Zomato":                  "#E23744",
+  "Xtra Reward":             "#F43F5E",
+  "Luminous":                "#EAB308",
+  "Money Control":           "#16A34A",
+  "Pocket FM":               "#6366F1",
+  "Common":                  "#57534E",
+  "Cera Superstar":          "#D946EF",
+};
+
+// ── Shared lookup maps ────────────────────────────────────────────────────────
 export const TEAM_OF = {
-  "Deepankar Hemnani": "Content",
-  "Sakshi Sharma":     "Content",
-  "Snigdha Banerjee":  "Content",
-  "Vanshika Atri":     "Content",
-  "Bhavana Bhaskar":   "Content",
-  "Reet Suman":        "Content",
-  "Uday Jadoun":       "Content",
-  "Ananya Saril":      "Content",
-  "Anirudh Motwani":   "Content",
-  "Saim":              "Content",
+  // Content
+  "Deepankar Hemnani":   "Content",
+  "Sakshi Sharma":       "Content",
+  "Snigdha Banerjee":    "Content",
+  "Vanshika Atri":       "Content",
+  "Bhavana Bhaskar":     "Content",
+  "Reet Suman":          "Content",
+  "Uday Jadoun":         "Content",
+  "Ananya Saril":        "Content",
+  "Saim":                "Content",
+  // Creative
+  "Ajay Kumar":          "Creative",
+  "Ashutosh Kumar":      "Creative",
+  "Sunil Dhyani":        "Creative",
+  "Amit Chauhan":        "Creative",
+  "Shervir":             "Creative",
+  "Deepak Verma":        "Creative",
+  "Amit Bhattacharjee":  "Creative",
+  "Ashish Kumar Tiwari": "Creative",
+  // Super admin
+  "Anirudh Motwani":     "Admin",
 };
 
 export const CURRENT_USER = "Deepankar Hemnani";
 
 export const USER_BY_EMAIL = {
+  // Content team
   "ananya.saril":    "Ananya Saril",
   "bhavana.bhaskar": "Bhavana Bhaskar",
   "reet":            "Reet Suman",
@@ -133,6 +263,15 @@ export const USER_BY_EMAIL = {
   "priyanshu":       "Priyanshu",
   "harshita.m":      "Harshita M",
   "saim.k":          "Saim",
+  // Creative team
+  "ajay.k":          "Ajay Kumar",
+  "ashutosh.k":      "Ashutosh Kumar",
+  "sunil.d":         "Sunil Dhyani",
+  "amit.c":          "Amit Chauhan",
+  "shervir":         "Shervir",
+  "deepak.v":        "Deepak Verma",
+  "amit.b":          "Amit Bhattacharjee",
+  "ashish.k":        "Ashish Kumar Tiwari",
 };
 
 export const TASK_TYPES = [
@@ -144,16 +283,26 @@ export const TASK_TYPES = [
 ];
 
 export const PEOPLE = {
-  "Deepankar Hemnani": { c:"#1F7A3D" },
-  "Sakshi Sharma":     { c:"#C2185B" },
-  "Snigdha Banerjee":  { c:"#0E6FA3" },
-  "Vanshika Atri":     { c:"#8B5CF6" },
-  "Bhavana Bhaskar":   { c:"#E05C00" },
-  "Reet Suman":        { c:"#0891B2" },
-  "Uday Jadoun":       { c:"#15803D" },
-  "Ananya Saril":      { c:"#B01457" },
-  "Anirudh Motwani":   { c:"#6D4C99" },
-  "Saim":              { c:"#0369A1" },
+  // Content team
+  "Deepankar Hemnani":   { c:"#1F7A3D" },
+  "Sakshi Sharma":       { c:"#C2185B" },
+  "Snigdha Banerjee":    { c:"#0E6FA3" },
+  "Vanshika Atri":       { c:"#8B5CF6" },
+  "Bhavana Bhaskar":     { c:"#E05C00" },
+  "Reet Suman":          { c:"#0891B2" },
+  "Uday Jadoun":         { c:"#15803D" },
+  "Ananya Saril":        { c:"#B01457" },
+  "Anirudh Motwani":     { c:"#6D4C99" },
+  "Saim":                { c:"#0369A1" },
+  // Creative team
+  "Ajay Kumar":          { c:"#0B6FCB" },
+  "Ashutosh Kumar":      { c:"#C84B31" },
+  "Sunil Dhyani":        { c:"#2D6A4F" },
+  "Amit Chauhan":        { c:"#7B2D8B" },
+  "Shervir":             { c:"#B5451B" },
+  "Deepak Verma":        { c:"#1A6B72" },
+  "Amit Bhattacharjee":  { c:"#6B3A1F" },
+  "Ashish Kumar Tiwari": { c:"#1B4F72" },
 };
 
 export const PROP_COLOR = {

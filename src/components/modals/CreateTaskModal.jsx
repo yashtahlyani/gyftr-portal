@@ -3,9 +3,13 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { X, Table2, ChevronDown } from "lucide-react";
 import { Avatar, Caret } from "../ui";
 import {
-  PROPERTIES, TASK_TYPES, OWNERS, BUSINESS_OWNERS, PRIORITY_LIST,
+  PROPERTIES, CREATIVE_PROPERTIES,
+  TASK_TYPES,
+  OWNERS, CREATIVE_OWNERS,
+  BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
+  PRIORITY_LIST,
+  PROP_COLOR, CREATIVE_PROP_COLOR,
 } from "../../constants";
-import { PROP_COLOR } from "../../constants";
 import { totalEffort, fmtHrs, fmtDate, dayDiff, plusDays, TODAY_ISO, typeColor } from "../../utils";
 
 function TypeMultiSelect({ value, onChange }) {
@@ -43,14 +47,19 @@ function TypeMultiSelect({ value, onChange }) {
   );
 }
 
-export function CreateTaskModal({ tasks, onClose, onCreate }) {
+export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content" }) {
+  const isCreative   = userTeam === "Creative";
+  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
+  const ownerList    = isCreative ? CREATIVE_OWNERS      : OWNERS;
+  const bizOwners    = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
   /* ── Form state ── */
   const [f, setF] = useState({
-    property:      PROPERTIES[0],
+    property:      propList[0],
     task:          "",
     type:          [],
-    businessOwner: BUSINESS_OWNERS[0],
-    assignee:      OWNERS[0],
+    businessOwner: bizOwners[0],
+    assignee:      ownerList[0],
     expected:      TODAY_ISO,
     due:           plusDays(TODAY_ISO,7),
     priority:      "Medium",
@@ -74,7 +83,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
   /* ── Availability panel state ── */
   const AV_DAYS = [{ k:1, l:"Today" },{ k:3, l:"3d" },{ k:7, l:"7d" },{ k:15, l:"15d" },{ k:0, l:"All" }];
   const [avDays,       setAvDays]       = useState(7);
-  const [selProps,     setSelProps]     = useState(PROPERTIES.slice());
+  const [selProps,     setSelProps]     = useState(propList.slice());
   const [propMenuOpen, setPropMenuOpen] = useState(false);
   const [selTypes,     setSelTypes]     = useState(TASK_TYPES.slice());
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
@@ -92,11 +101,11 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
   }),[tasks,selTypes,selProps,avDays]);
 
   const activeCols = useMemo(()=>{ const seen=new Set(pool.flatMap(t=>tArr(t))); return TASK_TYPES.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes]);
+  const memberData = ownerList.map(owner=>{ const memberTasks=pool.filter(t=>t.owner===owner); const propRows=selProps.map(prop=>({ prop, ...buildRow(memberTasks.filter(t=>t.property===prop)) })); return { owner, propRows, total:buildRow(memberTasks) }; });
   const heat = (n)=>{ if(n===0) return { bg:"transparent", fg:"#b0bfb6" }; if(n===1) return { bg:"#E8F5E9", fg:"#2E7D32" }; if(n===2) return { bg:"#C8E6C9", fg:"#1B5E20" }; if(n<=4) return { bg:"#FFF3E0", fg:"#E65100" }; return { bg:"#FFEBEE", fg:"#C62828" }; };
   const sNear = (dues)=>{ if(!dues.length) return ""; const sorted=[...dues].sort(); const d=dayDiff(TODAY_ISO,sorted[0]); if(d<0) return `${Math.abs(d)}d late`; if(d===0) return "today"; return `in ${d}d`; };
   const dueColor = (d)=>{ if(!d) return "#b0bfb6"; const diff=dayDiff(TODAY_ISO,d); if(diff<0) return "#C42424"; if(diff<=1) return "#E65100"; return "#15803D"; };
   const buildRow = (items)=>{ const byType={}; activeCols.forEach(c=>{ byType[c]={ n:0, dues:[] }; }); let totalTasks=0,totalHrs=0,allDues=[]; items.forEach(t=>{ tArr(t).forEach(ty=>{ if(byType[ty]){ byType[ty].n++; if(t.due) byType[ty].dues.push(t.due); } }); totalTasks++; totalHrs+=totalEffort(t.effort); if(t.due) allDues.push(t.due); }); allDues.sort(); return { byType, totalTasks, totalHrs, nearestDue:allDues[0]||"" }; };
-  const memberData = OWNERS.map(owner=>{ const memberTasks=pool.filter(t=>t.owner===owner); const propRows=selProps.map(prop=>({ prop, ...buildRow(memberTasks.filter(t=>t.property===prop)) })); return { owner, propRows, total:buildRow(memberTasks) }; });
   const grandTotal = buildRow(pool);
 
   return (
@@ -115,15 +124,15 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
         {/* LEFT: form */}
         <div style={{ flex:"0 0 340px", padding:"22px 24px", overflowY:"auto", borderRight:"1px solid var(--line)" }}>
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-            <div><Lbl>Property *</Lbl><Sel k="property" opts={PROPERTIES}/></div>
+            <div><Lbl>Property *</Lbl><Sel k="property" opts={propList}/></div>
             <div>
               <Lbl>Task name *</Lbl>
               <textarea className="gx-input" rows={3} style={{ resize:"none", fontFamily:"var(--font-b)" }} placeholder="Describe the deliverable clearly…" value={f.task} onChange={e=>set("task",e.target.value)}/>
             </div>
             <div><Lbl>Task type *</Lbl><TypeMultiSelect value={f.type} onChange={v=>set("type",v)}/></div>
             <div><Lbl>Priority</Lbl><Sel k="priority" opts={PRIORITY_LIST}/></div>
-            <div><Lbl>Business Owner *</Lbl><Sel k="businessOwner" opts={BUSINESS_OWNERS}/></div>
-            <div><Lbl>Assigned To *</Lbl><Sel k="assignee" opts={OWNERS}/></div>
+            <div><Lbl>Business Owner *</Lbl><Sel k="businessOwner" opts={bizOwners}/></div>
+            <div><Lbl>Assigned To *</Lbl><Sel k="assignee" opts={ownerList}/></div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               <div><Lbl>Expected Date *</Lbl><input className="gx-input" type="date" value={f.expected} onChange={e=>set("expected",e.target.value)}/></div>
               <div><Lbl opt>Promise Date</Lbl><input className="gx-input" type="date" value={f.due} onChange={e=>set("due",e.target.value)}/></div>
@@ -145,15 +154,15 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
 
             <div style={{ position:"relative" }}>
               <button className="gx-btn gx-btn-ghost" onClick={()=>setPropMenuOpen(o=>!o)} style={{ border:"1px solid var(--line)", padding:"5px 10px", fontSize:11.5 }}>
-                Property: <b>{selProps.length===PROPERTIES.length?"All":selProps.length}</b><ChevronDown size={12} style={{ marginLeft:3 }}/>
+                Property: <b>{selProps.length===propList.length?"All":selProps.length}</b><ChevronDown size={12} style={{ marginLeft:3 }}/>
               </button>
               {propMenuOpen && (<>
                 <div onClick={()=>setPropMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:40 }}/>
                 <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:5, padding:9, width:190, boxShadow:"0 14px 40px -10px rgba(0,0,0,.3)" }}>
-                  {PROPERTIES.map(p=>{ const on=selProps.includes(p); return (
+                  {propList.map(p=>{ const on=selProps.includes(p); return (
                     <div key={p} onClick={()=>toggleProp(p)} style={{ display:"flex", alignItems:"center", gap:7, padding:"4px 4px", borderRadius:5, cursor:"pointer" }}>
-                      <span style={{ width:12, height:12, borderRadius:3, background:on?PROP_COLOR[p]:"transparent", border:on?"none":"1.5px solid #c4cfc7", flex:"none" }}/>
-                      <span style={{ fontSize:12, fontWeight:700, color:on?PROP_COLOR[p]:"var(--ink-soft)" }}>{p}</span>
+                      <span style={{ width:12, height:12, borderRadius:3, background:on?propColorMap[p]:"transparent", border:on?"none":"1.5px solid #c4cfc7", flex:"none" }}/>
+                      <span style={{ fontSize:12, fontWeight:700, color:on?propColorMap[p]:"var(--ink-soft)" }}>{p}</span>
                     </div>
                   );})}
                 </div>
@@ -226,7 +235,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate }) {
                                 </td>
                               )}
                               <td className="gx-td" style={{ position:"sticky", left:130, background:isPropSel?"#F0F6E8":pi%2===0?"#F9FBF9":"#FAFCFA", zIndex:1, borderRight:"1px solid var(--line)" }}>
-                                <span style={{ fontWeight:700, fontSize:11.5, color:PROP_COLOR[pr.prop] }}>{pr.prop}</span>
+                                <span style={{ fontWeight:700, fontSize:11.5, color:propColorMap[pr.prop] }}>{pr.prop}</span>
                                 {isPropSel && <span style={{ marginLeft:4, fontSize:9, color:"var(--pop)", fontWeight:700 }}>◀</span>}
                               </td>
                               {activeCols.map(c=>{ const cell=pr.byType[c]||{n:0,dues:[]}; const h=heat(cell.n); return (

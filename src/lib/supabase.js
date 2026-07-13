@@ -36,6 +36,7 @@ export function dbToTask(row) {
                      _id: a.id, x: a.action, by: a.by_user,
                      ts: fmtDate(a.created_at?.slice(0,10)),
                    })),
+    team:          row.team || "Content",
     running:       row.running,
     startedAt:     row.started_at ? new Date(row.started_at).getTime() : null,
     updatedTs:     new Date(row.updated_at).getTime(),
@@ -48,6 +49,7 @@ export function dbToTask(row) {
 export function taskToDb(f, id) {
   return {
     id,
+    team:           f.team || "Content",
     property:       f.property,
     task:           f.task.trim(),
     type:           f.type,
