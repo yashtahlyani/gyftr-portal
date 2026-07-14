@@ -661,7 +661,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
               </div>
             )}
           </div>
-          <TypeLegend header="Task Types" types={legendTypes} sel={chartTypes} onToggle={toggleChart} colorMap={propColorMap}
+          <TypeLegend header="Task Types" types={legendTypes.length > 0 ? legendTypes : taskTypes} sel={chartTypes} onToggle={toggleChart} colorMap={propColorMap}
             onAll={() => setChartTypes(chartTypes.length === [...taskTypes,UNTYPED].length ? [] : [...taskTypes,UNTYPED])}/>
         </div>
       </div>
