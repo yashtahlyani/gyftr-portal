@@ -22,6 +22,7 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
   const isCreative   = userTeam === "Creative";
   const propList     = isCreative ? CREATIVE_PROPERTIES : PROPERTIES;
   const propColorMap = isCreative ? CREATIVE_PROP_COLOR : PROP_COLOR;
+  const storageKey   = isCreative ? "gyftr_creative_custom_props" : "gyftr_custom_props";
   const [mode,    setMode]    = useState("person");
   const [sel,     setSel]     = useState(null);
   const [selProp, setSelProp] = useState(null);
@@ -33,27 +34,32 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
   // Property management (custom additions stored in localStorage)
   const [newPropInput, setNewPropInput] = useState("");
   const [customProps,  setCustomProps]  = useState(() => {
-    try { return JSON.parse(localStorage.getItem("gyftr_custom_props") || "[]"); }
+    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); }
     catch { return []; }
   });
+  // Combine static propList with custom additions so the scoreboard updates immediately
+  const effectivePropList = useMemo(
+    () => [...propList, ...customProps.filter(p => !propList.includes(p))],
+    [propList, customProps]
+  );
   const [propMgmtOpen, setPropMgmtOpen] = useState(false);
 
   const addCustomProp = () => {
     const name = newPropInput.trim();
     if (!name) return;
-    if (propList.includes(name)) {
+    if (effectivePropList.includes(name)) {
       alert(`"${name}" already exists in the property list.`);
       return;
     }
     const updated = [...customProps, name];
-    localStorage.setItem("gyftr_custom_props", JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
     setCustomProps(updated);
     setNewPropInput("");
   };
 
   const removeCustomProp = (p) => {
     const updated = customProps.filter(x => x !== p);
-    localStorage.setItem("gyftr_custom_props", JSON.stringify(updated));
+    localStorage.setItem(storageKey, JSON.stringify(updated));
     setCustomProps(updated);
   };
 
@@ -83,7 +89,7 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
     weekHours: items.reduce((s,t)=>s+(t.effort||[]).filter(e=>e.date>=weekFrom&&e.date<=TODAY_ISO).reduce((a,e)=>a+(Number(e.hours)||0),0),0),
   });
 
-  const propData = propList.map(p=>{
+  const propData = effectivePropList.map(p=>{
     const items = rangedTasks.filter(t=>t.property===p);
     const ownerHours = {};
     items.forEach(t=>{ ownerHours[t.owner]=(ownerHours[t.owner]||0)+totalEffortR(t.effort); });
@@ -257,7 +263,7 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
             );
           }
           const low      = st.active>0 && st.weekHours<1;
-          const propMix  = propList.map(p=>({ p, n:g.items.filter(t=>t.property===p).length })).filter(x=>x.n>0);
+          const propMix  = effectivePropList.map(p=>({ p, n:g.items.filter(t=>t.property===p).length })).filter(x=>x.n>0);
           return (
             <div key={g.key} className="gx-card" onClick={()=>setSel(on?null:g.key)} style={{ padding:16, cursor:"pointer", outline:on?"2px solid var(--pop)":"2px solid transparent", transition:".15s" }}>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
