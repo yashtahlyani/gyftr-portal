@@ -4,7 +4,7 @@ import { X, Table2, ChevronDown } from "lucide-react";
 import { Avatar, Caret } from "../ui";
 import {
   PROPERTIES, CREATIVE_PROPERTIES,
-  TASK_TYPES,
+  TASK_TYPES, CREATIVE_TASK_TYPES,
   OWNERS, CREATIVE_OWNERS,
   BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
   PRIORITY_LIST,
@@ -12,7 +12,7 @@ import {
 } from "../../constants";
 import { totalEffort, fmtHrs, fmtDate, dayDiff, plusDays, TODAY_ISO, typeColor } from "../../utils";
 
-function TypeMultiSelect({ value, onChange }) {
+function TypeMultiSelect({ value, onChange, taskTypes }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   const sel = Array.isArray(value) ? value : value ? [value] : [];
@@ -35,7 +35,7 @@ function TypeMultiSelect({ value, onChange }) {
       </div>
       {open && (
         <div style={{ position:"absolute", top:"100%", left:0, zIndex:300, background:"var(--surface)", border:"1px solid var(--line)", borderRadius:8, boxShadow:"0 4px 16px rgba(0,0,0,.12)", minWidth:220, maxHeight:260, overflowY:"auto", padding:6 }}>
-          {TASK_TYPES.map(tt => (
+          {taskTypes.map(tt => (
             <label key={tt} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", cursor:"pointer", borderRadius:6, fontSize:12.5, background:sel.includes(tt)?"var(--pop-soft)":"transparent" }}>
               <input type="checkbox" checked={sel.includes(tt)} onChange={()=>toggle(tt)} style={{ accentColor:"var(--pop-deep)" }}/>
               {tt}
@@ -49,10 +49,11 @@ function TypeMultiSelect({ value, onChange }) {
 
 export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content" }) {
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
-  const ownerList    = isCreative ? CREATIVE_OWNERS      : OWNERS;
+  const propList     = isCreative ? CREATIVE_PROPERTIES    : PROPERTIES;
+  const ownerList    = isCreative ? CREATIVE_OWNERS        : OWNERS;
   const bizOwners    = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR    : PROP_COLOR;
+  const taskTypes    = isCreative ? CREATIVE_TASK_TYPES    : TASK_TYPES;
   /* ── Form state ── */
   const [f, setF] = useState({
     property:      propList[0],
@@ -85,7 +86,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
   const [avDays,       setAvDays]       = useState(7);
   const [selProps,     setSelProps]     = useState(propList.slice());
   const [propMenuOpen, setPropMenuOpen] = useState(false);
-  const [selTypes,     setSelTypes]     = useState(TASK_TYPES.slice());
+  const [selTypes,     setSelTypes]     = useState(() => taskTypes.slice());
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const toggleProp = (p)=>setSelProps(prev=>prev.includes(p)?prev.filter(x=>x!==p):[...prev,p]);
   const toggleType = (t)=>setSelTypes(prev=>prev.includes(t)?prev.filter(x=>x!==t):[...prev,t]);
@@ -100,7 +101,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
     return true;
   }),[tasks,selTypes,selProps,avDays]);
 
-  const activeCols = useMemo(()=>{ const seen=new Set(pool.flatMap(t=>tArr(t))); return TASK_TYPES.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes]);
+  const activeCols = useMemo(()=>{ const seen=new Set(pool.flatMap(t=>tArr(t))); return taskTypes.filter(t=>seen.has(t)&&selTypes.includes(t)); },[pool,selTypes,taskTypes]);
   const heat = (n)=>{ if(n===0) return { bg:"transparent", fg:"#b0bfb6" }; if(n===1) return { bg:"#E8F5E9", fg:"#2E7D32" }; if(n===2) return { bg:"#C8E6C9", fg:"#1B5E20" }; if(n<=4) return { bg:"#FFF3E0", fg:"#E65100" }; return { bg:"#FFEBEE", fg:"#C62828" }; };
   const sNear = (dues)=>{ if(!dues.length) return ""; const sorted=[...dues].sort(); const d=dayDiff(TODAY_ISO,sorted[0]); if(d<0) return `${Math.abs(d)}d late`; if(d===0) return "today"; return `in ${d}d`; };
   const dueColor = (d)=>{ if(!d) return "#b0bfb6"; const diff=dayDiff(TODAY_ISO,d); if(diff<0) return "#C42424"; if(diff<=1) return "#E65100"; return "#15803D"; };
@@ -129,7 +130,7 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
               <Lbl>Task name *</Lbl>
               <textarea className="gx-input" rows={3} style={{ resize:"none", fontFamily:"var(--font-b)" }} placeholder="Describe the deliverable clearly…" value={f.task} onChange={e=>set("task",e.target.value)}/>
             </div>
-            <div><Lbl>Task type *</Lbl><TypeMultiSelect value={f.type} onChange={v=>set("type",v)}/></div>
+            <div><Lbl>Task type *</Lbl><TypeMultiSelect value={f.type} onChange={v=>set("type",v)} taskTypes={taskTypes}/></div>
             <div><Lbl>Priority</Lbl><Sel k="priority" opts={PRIORITY_LIST}/></div>
             <div><Lbl>Business Owner *</Lbl><Sel k="businessOwner" opts={bizOwners}/></div>
             <div><Lbl>Assigned To *</Lbl><Sel k="assignee" opts={ownerList}/></div>
@@ -171,12 +172,12 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
 
             <div style={{ position:"relative" }}>
               <button className="gx-btn gx-btn-ghost" onClick={()=>setTypeMenuOpen(o=>!o)} style={{ border:"1px solid var(--line)", padding:"5px 10px", fontSize:11.5 }}>
-                Types: <b>{selTypes.length===TASK_TYPES.length?"All":selTypes.length}</b><ChevronDown size={12} style={{ marginLeft:3 }}/>
+                Types: <b>{selTypes.length===taskTypes.length?"All":selTypes.length}</b><ChevronDown size={12} style={{ marginLeft:3 }}/>
               </button>
               {typeMenuOpen && (<>
                 <div onClick={()=>setTypeMenuOpen(false)} style={{ position:"fixed", inset:0, zIndex:40 }}/>
                 <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:5, padding:9, width:220, maxHeight:300, overflowY:"auto", boxShadow:"0 14px 40px -10px rgba(0,0,0,.3)" }}>
-                  {TASK_TYPES.map(t=>{ const on=selTypes.includes(t); return (
+                  {taskTypes.map(t=>{ const on=selTypes.includes(t); return (
                     <div key={t} onClick={()=>toggleType(t)} style={{ display:"flex", alignItems:"center", gap:7, padding:"4px 4px", borderRadius:5, cursor:"pointer" }}>
                       <span style={{ width:12, height:12, borderRadius:3, background:on?typeColor(t):"transparent", border:on?"none":"1.5px solid #c4cfc7", flex:"none" }}/>
                       <span style={{ fontSize:12, fontWeight:600, color:on?"var(--ink)":"var(--ink-soft)" }}>{t}</span>

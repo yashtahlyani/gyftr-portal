@@ -276,6 +276,30 @@ export const USER_BY_EMAIL = {
   "ashish.t":             "Ashish Kumar Tiwari",
 };
 
+export const CREATIVE_TASK_TYPES = [
+  "Emailer",
+  "WhatsApp Creative",
+  "Banner",
+  "Social Post",
+  "Brand Creative",
+  "AV",
+  "Blog Creative",
+  "1 Page Website",
+  "2 Page Website",
+  "Full Website",
+  "Website Page Creation",
+  "Logo Resize",
+  "Special Project",
+  "App Journey UI",
+  "Newsletter",
+  "Push Notification",
+  "Google Ad",
+  "Google Merchant Center",
+  "Figma Journey",
+  "PN",
+  "Gamification",
+];
+
 export const TASK_TYPES = [
   "Discussion","Emailer","Sms","WhatsApp","BTF","ATF","T&C","Important Instructions",
   "Redemption Steps","Video Script","Category BTF","Homepage BTF","Occassion BTF","Banner",

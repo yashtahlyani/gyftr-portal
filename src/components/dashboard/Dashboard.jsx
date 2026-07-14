@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { Plus, ChevronDown, Clock, CalendarDays } from "lucide-react";
 import { Avatar, StatusChip } from "../ui";
-import { PROPERTIES, CREATIVE_PROPERTIES, STATUS_LIST, TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
+import { PROPERTIES, CREATIVE_PROPERTIES, STATUS_LIST, TASK_TYPES, CREATIVE_TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { typeColor, fmtDate, fmtHrs, agingDays, taskNo, TODAY_ISO } from "../../utils";
 import { supabase } from "../../lib/supabase";
 
@@ -77,13 +77,14 @@ function HourTooltip({ active, payload, label }) {
 
 export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "Content" }) {
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES : PROPERTIES;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR : PROP_COLOR;
+  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
+  const taskTypes    = isCreative ? CREATIVE_TASK_TYPES  : TASK_TYPES;
 
   const [drill,          setDrill]          = useState(null);
   const [selProps,       setSelProps]       = useState(() => propList.slice());
-  const [selTypes,       setSelTypes]       = useState(TASK_TYPES.slice());
-  const [chartTypes,     setChartTypes]     = useState([...TASK_TYPES, UNTYPED]);
+  const [selTypes,       setSelTypes]       = useState(() => taskTypes.slice());
+  const [chartTypes,     setChartTypes]     = useState(() => [...taskTypes, UNTYPED]);
   const [propMenuOpen,   setPropMenuOpen]   = useState(false);
   const [typeMenuOpen,   setTypeMenuOpen]   = useState(false);
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
@@ -188,7 +189,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
 
   /* ── Base filter: property / type / status / owner (no date — charts handle dates internally) ── */
   const allProps = selProps.length === propList.length;
-  const allTypes = selTypes.length === TASK_TYPES.length;
+  const allTypes = selTypes.length === taskTypes.length;
 
   const filtered = useMemo(() => tasks.filter(t =>
     (allProps || selProps.includes(t.property)) &&
@@ -371,7 +372,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
 
   // Legend for chart 2 (task types)
   const legendTypes = [
-    ...TASK_TYPES.filter(ty =>
+    ...taskTypes.filter(ty =>
       effortSource.some(e => { const t = taskLookup[e.task_id]; return t && tArr(t).includes(ty); }) ||
       filtered.some(t => tArr(t).includes(ty))
     ),
@@ -383,7 +384,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
   const toggleChart = (t) => setChartTypes(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
   const toggleProp  = (p) => setSelProps(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
   const toggleStat  = (s) => setFStatus(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
-  const clearAll    = () => { setDateFrom(""); setDateTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(propList.slice()); setSelTypes(TASK_TYPES.slice()); setChartTypes([...TASK_TYPES, UNTYPED]); setDrill(null); };
+  const clearAll    = () => { setDateFrom(""); setDateTo(""); setFStatus(STATUS_LIST.slice()); setFOwner("All"); setSelProps(propList.slice()); setSelTypes(taskTypes.slice()); setChartTypes([...taskTypes, UNTYPED]); setDrill(null); };
   const setToday    = () => { setDateFrom(TODAY_ISO); setDateTo(TODAY_ISO); };
 
   const hasFilter = hasDate || fStatus.length !== STATUS_LIST.length || fOwner !== "All" || !allProps || !allTypes;
@@ -465,7 +466,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
         {/* Task type */}
         <div style={{ position:"relative" }}>
           <button className="gx-btn gx-btn-ghost" onClick={() => setTypeMenuOpen(o => !o)} style={{ border:"1px solid var(--line)", padding:"7px 11px", fontSize:12.5 }}>
-            Task types: <b style={{ marginLeft:3 }}>{allTypes ? "All" : `${selTypes.length} of ${TASK_TYPES.length}`}</b>
+            Task types: <b style={{ marginLeft:3 }}>{allTypes ? "All" : `${selTypes.length} of ${taskTypes.length}`}</b>
             <ChevronDown size={13} style={{ marginLeft:3 }}/>
           </button>
           {typeMenuOpen && (<>
@@ -473,9 +474,9 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
             <div className="gx-card gx-fade" style={{ position:"absolute", zIndex:50, marginTop:6, padding:10, width:230, maxHeight:340, overflowY:"auto", boxShadow:"0 18px 50px -12px rgba(0,0,0,.3)" }}>
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                 <b style={{ fontSize:11, color:"var(--ink-soft)", textTransform:"uppercase" }}>Task type</b>
-                <span style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={() => setSelTypes(allTypes ? [] : TASK_TYPES.slice())}>{allTypes ? "Clear" : "All"}</span>
+                <span style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer" }} onClick={() => setSelTypes(allTypes ? [] : taskTypes.slice())}>{allTypes ? "Clear" : "All"}</span>
               </div>
-              {TASK_TYPES.map(t => { const on = selTypes.includes(t); return (
+              {taskTypes.map(t => { const on = selTypes.includes(t); return (
                 <div key={t} onClick={() => toggleType(t)} style={{ display:"flex", alignItems:"center", gap:8, padding:"4px", borderRadius:6, cursor:"pointer" }}>
                   <span style={{ width:11, height:11, borderRadius:3, background:on ? typeColor(t) : "transparent", border:on ? "none" : "1.5px solid #c4cfc7", flex:"none" }}/>
                   <span style={{ fontSize:12.5, fontWeight:600, color:on ? "var(--ink)" : "var(--ink-soft)" }}>{t}</span>
@@ -661,7 +662,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
             )}
           </div>
           <TypeLegend header="Task Types" types={legendTypes} sel={chartTypes} onToggle={toggleChart} colorMap={propColorMap}
-            onAll={() => setChartTypes(chartTypes.length === [...TASK_TYPES,UNTYPED].length ? [] : [...TASK_TYPES,UNTYPED])}/>
+            onAll={() => setChartTypes(chartTypes.length === [...taskTypes,UNTYPED].length ? [] : [...taskTypes,UNTYPED])}/>
         </div>
       </div>
 

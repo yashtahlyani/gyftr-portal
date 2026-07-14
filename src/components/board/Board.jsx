@@ -9,7 +9,7 @@ import {
   PROJECT_STATUS_LIST, EFFORT_STATUS_LIST,
   OWNERS, CREATIVE_OWNERS,
   BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
-  PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CURRENT_USER,
+  PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CREATIVE_TASK_TYPES, CURRENT_USER,
 } from "../../constants";
 import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_ISO } from "../../utils";
@@ -37,7 +37,7 @@ const TABLE_W = COLS.reduce((s,c)=>s+c.w,0) + 16;
 
 const toTypeArr = (v) => Array.isArray(v) ? v : (v ? [v] : []);
 
-function TypeSelect({ value, onChange }) {
+function TypeSelect({ value, onChange, taskTypes }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   const sel = toTypeArr(value);
@@ -65,7 +65,7 @@ function TypeSelect({ value, onChange }) {
       </div>
       {open && (
         <div style={{ position:"absolute", top:"100%", left:0, zIndex:300, background:"var(--surface)", border:"1px solid var(--line)", borderRadius:8, boxShadow:"0 4px 16px rgba(0,0,0,.12)", minWidth:190, maxHeight:260, overflowY:"auto", padding:6 }}>
-          {TASK_TYPES.map(tt => (
+          {taskTypes.map(tt => (
             <label key={tt} style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", cursor:"pointer", borderRadius:6, fontSize:12.5, background:sel.includes(tt)?"var(--pop-soft)":"transparent" }}>
               <input type="checkbox" checked={sel.includes(tt)} onChange={() => toggle(tt)} style={{ accentColor:"var(--pop-deep)" }}/>
               {tt}
@@ -87,10 +87,11 @@ const HB_KEY = (id) => `gyftr_hb_${id}`;
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh, userTeam = "Content" }) {
   const isManager = role === "manager" || role === "super_admin";
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
-  const ownerList    = isCreative ? CREATIVE_OWNERS      : OWNERS;
+  const propList     = isCreative ? CREATIVE_PROPERTIES   : PROPERTIES;
+  const ownerList    = isCreative ? CREATIVE_OWNERS       : OWNERS;
   const bizOwnerList = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
+  const propColorMap = isCreative ? CREATIVE_PROP_COLOR   : PROP_COLOR;
+  const taskTypes    = isCreative ? CREATIVE_TASK_TYPES   : TASK_TYPES;
   const [q,             setQ]             = useState("");
   const [fProp,         setFProp]         = useState("All");
   const [fStatus,       setFStatus]       = useState("All");
@@ -366,7 +367,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                     {/* Task type */}
                     <td className="gx-td" style={{ position:"relative" }}>
                       {isManager
-                        ? <TypeSelect value={t.type} onChange={v => patch(t.id, { type: v }, "Edited task type")}/>
+                        ? <TypeSelect value={t.type} onChange={v => patch(t.id, { type: v }, "Edited task type")} taskTypes={taskTypes}/>
                         : <span style={{ fontSize:12 }}>{toTypeArr(t.type).join(", ") || "—"}</span>}
                     </td>
 
