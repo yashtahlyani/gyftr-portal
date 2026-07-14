@@ -246,6 +246,7 @@ export const TEAM_OF = {
   // Super admin
   "Anirudh Motwani":     "Admin",
   "Yash Tahlyani":       "Admin",
+  "Anushka Mishra":      "Admin",
 };
 
 export const CURRENT_USER = "Deepankar Hemnani";
@@ -254,6 +255,7 @@ export const USER_BY_EMAIL = {
   // Super admins
   "yash.tahlyani":   "Yash Tahlyani",
   "anirudh.motwani": "Anirudh Motwani",
+  "ceo.office":      "Anushka Mishra",
   // Content team
   "deepankar.h":     "Deepankar Hemnani",
   "ananya.saril":    "Ananya Saril",

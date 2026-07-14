@@ -8,7 +8,7 @@ import { CURRENT_USER, USER_BY_EMAIL } from "../constants";
 //   manager      → Deepankar (Content) or Ajay Kumar (Creative) — see own team only
 //   user         → everyone else — see only their assigned tasks in own team
 
-const SUPER_ADMIN_EMAILS  = ["anirudh.motwani", "yash.tahlyani"];
+const SUPER_ADMIN_EMAILS  = ["anirudh.motwani", "yash.tahlyani", "ceo.office"];
 const CONTENT_MGR_EMAILS  = ["deepankar.h"];
 const CREATIVE_MGR_EMAILS = ["ajay.k"];
 const CREATIVE_EMAILS     = new Set(["ajay.k","ashutosh.j","sunil.d","amit.c","shervir","deepak.verma","amit.bhattacharjee","ashish.t"]);
