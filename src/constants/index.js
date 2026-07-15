@@ -119,7 +119,7 @@ export const CREATIVE_OWNERS = [
 ];
 export const CREATIVE_BUSINESS_OWNERS = ["Ajay Kumar", "Anirudh Motwani"];
 
-export const CREATIVE_PROPERTIES = [
+const _STATIC_CREATIVE_PROPERTIES = [
   "GyFTR",
   "Kotak Instant Vouchers",
   "IRCTC",
@@ -169,6 +169,16 @@ export const CREATIVE_PROPERTIES = [
   "Pocket FM",
   "Common",
   "Cera Superstar",
+];
+
+const _creativeCustomProps = (() => {
+  try { return JSON.parse(localStorage.getItem("gyftr_creative_custom_props") || "[]"); }
+  catch { return []; }
+})();
+
+export const CREATIVE_PROPERTIES = [
+  ..._STATIC_CREATIVE_PROPERTIES,
+  ..._creativeCustomProps.filter(p => !_STATIC_CREATIVE_PROPERTIES.includes(p)),
 ];
 
 export const CREATIVE_PROP_COLOR = {
