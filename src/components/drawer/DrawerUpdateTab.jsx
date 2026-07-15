@@ -3,7 +3,7 @@ import React, { useRef, useState } from "react";
 import { Plus, X, CalendarDays, Link } from "lucide-react";
 import { Caret } from "../ui";
 import { OWNERS, CREATIVE_OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
-import { teamOf, fmtDate, fmtHrs, TODAY_ISO } from "../../utils";
+import { teamOf, fmtDate, fmtHrs, todayISO } from "../../utils";
 
 export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, addComment, isManager }) {
   const u = task.update || {};
@@ -25,7 +25,7 @@ export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, add
       stopTimerAndLog(task, runningMs / 3600000);
     }
     const updates = { projectStatus: s };
-    if (s === "Completed" && !task.delivered) updates.delivered = TODAY_ISO;
+    if (s === "Completed" && !task.delivered) updates.delivered = todayISO();
     patch(task.id, updates, `Project Status → ${s}`);
   };
 

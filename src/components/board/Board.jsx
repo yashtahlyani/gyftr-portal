@@ -12,7 +12,7 @@ import {
   PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CREATIVE_TASK_TYPES, CURRENT_USER,
 } from "../../constants";
 import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
-import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_ISO } from "../../utils";
+import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_ISO, todayISO } from "../../utils";
 
 const COLS = [
   { k:"no",            label:"No.",            w:36  },
@@ -222,7 +222,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
         stopTimerAndLog(t, runningMs / 3600000);
       }
       const updates = { projectStatus: s };
-      if (!t.delivered) updates.delivered = TODAY_ISO;
+      if (!t.delivered) updates.delivered = todayISO();
       patch(t.id, updates, `Project Status → ${s}`);
       return;
     }
@@ -446,7 +446,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                           style={{ background:"transparent", color:"var(--pop-deep)", fontWeight:700, fontSize:13, display:"inline-flex", alignItems:"center", gap:3, padding:"3px 2px" }}>
                           <Timer size={13}/>{fmtHrs(total)}
                         </button>
-                        <EffortAddCell onAdd={h=>addEffort(t.id,{ date:TODAY_ISO, status:t.effortStatus, hours:h, manual:true })}/>
+                        <EffortAddCell onAdd={h=>addEffort(t.id,{ date:todayISO(), status:t.effortStatus, hours:h, manual:true })}/>
                       </div>
                     </td>
 

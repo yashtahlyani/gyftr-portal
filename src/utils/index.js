@@ -7,6 +7,9 @@ export const TODAY = new Date();
 const _t = TODAY;
 export const TODAY_ISO = `${_t.getFullYear()}-${String(_t.getMonth()+1).padStart(2,"0")}-${String(_t.getDate()).padStart(2,"0")}`;
 export const NOW_MS    = Date.now();
+// Dynamic version — call this instead of TODAY_ISO wherever you need the date AT THE TIME OF THE CALL
+// (e.g. logging effort, stamping delivered dates). TODAY_ISO is frozen at page-load.
+export const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
 export const fmtDate = (s) =>
   s ? new Date(s+"T00:00:00").toLocaleDateString("en-GB",{ day:"numeric", month:"short" }) : "—";
@@ -57,7 +60,7 @@ export const agingDays = (t) => {
     const final = t.delivered;
     return final ? Math.max(0, dayDiff(target, final)) : 0;
   }
-  return Math.max(0, dayDiff(target, TODAY_ISO));
+  return Math.max(0, dayDiff(target, todayISO()));
 };
 
 /* ── Avatar ── */

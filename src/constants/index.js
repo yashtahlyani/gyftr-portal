@@ -308,6 +308,7 @@ export const TASK_TYPES = [
   "Push Notification","Google Ads","Meta Ads","Blog","Website Content","Newsletter",
   "Pop Up","Event Content","Gamification",
   "Creative/Design Task","Reel/Video Task","Vetting/Editing",
+  "Research","Off-Page Posting","SEO Activity","Blog/BTF Structures",
 ];
 
 export const PEOPLE = {

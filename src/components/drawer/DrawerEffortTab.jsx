@@ -3,10 +3,10 @@ import React, { useState } from "react";
 import { Plus, Check, Lock, Unlock, X } from "lucide-react";
 import { StatusChip } from "../ui";
 import { EFFORT_STATUS_LIST } from "../../constants";
-import { totalEffort, fmtHrs, fmtDate, TODAY_ISO } from "../../utils";
+import { totalEffort, fmtHrs, fmtDate, todayISO } from "../../utils";
 
 export function DrawerEffortTab({ task, patch, addEffort, removeEffort, isManager }) {
-  const [eDate,   setEDate]   = useState(TODAY_ISO);
+  const [eDate,   setEDate]   = useState(todayISO);
   const [eStatus, setEStatus] = useState(task?.effortStatus || "Discussion");
   const [eHrs,    setEHrs]    = useState("");
 

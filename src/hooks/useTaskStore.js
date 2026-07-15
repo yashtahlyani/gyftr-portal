@@ -1,7 +1,7 @@
 /* ─── hooks/useTaskStore.js ─── */
 import { useState, useEffect, useCallback } from "react";
 import { supabase, dbToTask, taskToDb, buildDbPatch } from "../lib/supabase";
-import { TODAY_ISO, fmtDate } from "../utils";
+import { todayISO, fmtDate } from "../utils";
 
 export function useTaskStore(currentUser) {
   const [tasks,   setTasks]   = useState([]);
@@ -75,7 +75,7 @@ export function useTaskStore(currentUser) {
 
   /* ── stopTimerAndLog — atomic: stops timer + logs effort in one flow to prevent race conditions ── */
   const stopTimerAndLog = useCallback(async (task, hours) => {
-    const entry = { date: TODAY_ISO, status: task.effortStatus, hours: Math.round(hours * 100) / 100 };
+    const entry = { date: todayISO(), status: task.effortStatus, hours: Math.round(hours * 100) / 100 };
     cacheEntry(task.id, entry.date, entry.hours, entry.status);
     setTasks(ts => ts.map(t => t.id === task.id ? {
       ...t, running: false, startedAt: null,
