@@ -1,5 +1,5 @@
 /* ─── components/admin/Admin.jsx ─── */
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Search, AlertTriangle, Clock, X, FileText, Plus, RefreshCw } from "lucide-react";
 import { Avatar, StatusChip, Caret } from "../ui";
 import { PROPERTIES, CREATIVE_PROPERTIES, PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
@@ -42,6 +42,11 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
     () => [...propList, ...customProps.filter(p => !propList.includes(p))],
     [propList, customProps]
   );
+  // Re-sync customProps when team changes (storageKey changes after auth resolves)
+  useEffect(() => {
+    try { setCustomProps(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
+    catch { setCustomProps([]); }
+  }, [storageKey]);
   const [propMgmtOpen, setPropMgmtOpen] = useState(false);
 
   const addCustomProp = () => {
