@@ -106,9 +106,25 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
   const patchRef           = useRef(patch);
   const stopTimerAndLogRef = useRef(stopTimerAndLog);
   const lastTickRef        = useRef(Date.now()); // tracks when setInterval last fired
+  const lastActivityRef    = useRef(Date.now()); // tracks last user interaction in browser
   useEffect(() => { tasksRef.current = tasks;                     }, [tasks]);
   useEffect(() => { patchRef.current = patch;                     }, [patch]);
   useEffect(() => { stopTimerAndLogRef.current = stopTimerAndLog; }, [stopTimerAndLog]);
+
+  // Update lastActivityRef on any user interaction so we know when they were last active.
+  useEffect(() => {
+    const touch = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener("mousemove", touch);
+    window.addEventListener("keydown",   touch);
+    window.addEventListener("click",     touch);
+    window.addEventListener("scroll",    touch);
+    return () => {
+      window.removeEventListener("mousemove", touch);
+      window.removeEventListener("keydown",   touch);
+      window.removeEventListener("click",     touch);
+      window.removeEventListener("scroll",    touch);
+    };
+  }, []);
 
   // Auto-stop a running timer and log hours to DB.
   // `activeUntil` is the timestamp up to which the user was actively working
@@ -137,15 +153,24 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
       const gap = now - lastTickRef.current;
       lastTickRef.current = now;
 
-      // If JS was frozen for longer than INACTIVITY_MS, the laptop slept.
+      // Case 1: JS was frozen (laptop slept / tab froze) — gap between ticks is huge.
       if (gap > INACTIVITY_MS) {
         const names = [];
-        // Credit time up to when the laptop went to sleep (now - gap),
-        // not up to now (which would include the sleep time itself).
-        // Guard: skip if checkGaps already froze this task (HB key removed).
         tasksRef.current.filter(t => t.running).forEach(t => {
           if (!localStorage.getItem(HB_KEY(t.id))) return;
           names.push(freezeTimer(t, now - gap));
+        });
+        if (names.length) setPauseBanner(names);
+      }
+
+      // Case 2: Laptop stayed ON but user hasn't touched the browser in INACTIVITY_MS.
+      // Credit time up to when they were last active, not now.
+      const idleMs = now - lastActivityRef.current;
+      if (idleMs > INACTIVITY_MS) {
+        const names = [];
+        tasksRef.current.filter(t => t.running).forEach(t => {
+          if (!localStorage.getItem(HB_KEY(t.id))) return;
+          names.push(freezeTimer(t, lastActivityRef.current));
         });
         if (names.length) setPauseBanner(names);
       }
