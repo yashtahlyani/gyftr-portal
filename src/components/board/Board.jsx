@@ -514,7 +514,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
           <span style={{ color:"#586860", fontWeight:700 }}>grey</span> = locked,{" "}
           <span style={{ color:"#C42424", fontWeight:700 }}>red</span> = team has requested an unlock.
           Manual hour entries always appear in <span style={{ color:"#C42424", fontWeight:700 }}>red</span> in the effort breakdown.
-          The timer <b>auto-stops if the laptop sleeps for 30+ min</b> and logs the hours automatically — start it again to continue tracking.
+          The timer <b>auto-stops after 90 min of no browser activity or if the laptop sleeps</b> and logs hours automatically — start it again to continue tracking.
         </div>
       </div>
     </div>
