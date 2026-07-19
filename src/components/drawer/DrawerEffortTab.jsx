@@ -66,7 +66,7 @@ export function DrawerEffortTab({ task, patch, addEffort, removeEffort, isManage
                       <td className="gx-td gx-mono" style={{ fontSize:12.5, fontWeight:700, color:m?"#C42424":"#067A8C" }}>{fmtHrs(e.hours)}</td>
                       <td className="gx-td" style={{ fontSize:11.5, fontWeight:700, color:m?"#C42424":"var(--ink-soft)" }}>{m?"Manual":"Timer"}</td>
                       <td className="gx-td" style={{ textAlign:"right", borderRight:"none" }}>
-                        {m ? <X size={14} style={{ color:"#C42424", cursor:"pointer" }} onClick={()=>removeEffort(task.id,i)}/> : null}
+                        <X size={14} style={{ color:m?"#C42424":"#94a59b", cursor:"pointer" }} onClick={()=>removeEffort(task.id,i)}/>
                       </td>
                     </tr>
                   );
