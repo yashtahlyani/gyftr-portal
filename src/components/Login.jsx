@@ -2,9 +2,8 @@
 import React, { useState } from "react";
 import { STYLES } from "../lib/styles";
 import { GyftrLogo } from "./ui/GyftrLogo";
-import { supabase } from "../lib/supabase";
 
-export function Login({ onIn }) {
+export function Login({ onIn, login }) {
   const [email,   setEmail]   = useState("");
   const [pass,    setPass]    = useState("");
   const [err,     setErr]     = useState("");
@@ -12,12 +11,14 @@ export function Login({ onIn }) {
 
   const signIn = async () => {
     setErr(""); setLoading(true);
-    if (supabase) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
-      if (error) { setErr(error.message); setLoading(false); return; }
+    try {
+      await login(email, pass);
+      onIn(email.split("@")[0] || "Manager");
+    } catch (e) {
+      setErr(e.message || "Sign in failed");
+    } finally {
+      setLoading(false);
     }
-    onIn(email.split("@")[0] || "Manager");
-    setLoading(false);
   };
 
   return (
