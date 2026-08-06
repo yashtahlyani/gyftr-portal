@@ -1,7 +1,7 @@
 /* ─── hooks/useTaskStore.js ─── */
 import { useState, useEffect, useCallback } from "react";
-import { apiFetch, dbToTask, buildDbPatch } from "../lib/api";
-import { todayISO } from "../utils";
+import { supabase, dbToTask, taskToDb, buildDbPatch } from "../lib/supabase";
+import { todayISO, fmtDate } from "../utils";
 
 export function useTaskStore(currentUser) {
   const [tasks,   setTasks]   = useState([]);
@@ -9,36 +9,48 @@ export function useTaskStore(currentUser) {
 
   /* ── Fetch ── */
   const fetchTasks = useCallback(async () => {
-    try {
-      const data = await apiFetch("/api/tasks");
-      setTasks(data.map(dbToTask));
-    } catch (err) {
-      console.error("fetchTasks error:", err.message);
-    } finally {
-      setLoading(false);
-    }
+    if (!supabase) { setTasks([]); setLoading(false); return; }
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*, effort_entries(*), comments(*), audit_log(*), task_files(*)")
+      .order("updated_at", { ascending: false });
+    if (error) console.error("fetchTasks error:", error.message);
+    if (!error && data) setTasks(data.map(dbToTask));
+    setLoading(false);
   }, []);
 
-  useEffect(() => { fetchTasks(); }, [fetchTasks]);
+  /* ── Real-time subscription ── */
+  useEffect(() => {
+    if (!supabase) return;
+    const ch = supabase.channel("tasks-live")
+      .on("postgres_changes", { event:"*", schema:"public", table:"tasks"          }, fetchTasks)
+      .on("postgres_changes", { event:"*", schema:"public", table:"effort_entries" }, fetchTasks)
+      .on("postgres_changes", { event:"*", schema:"public", table:"comments"       }, fetchTasks)
+      .on("postgres_changes", { event:"*", schema:"public", table:"audit_log"      }, fetchTasks)
+      .subscribe();
+    return () => supabase.removeChannel(ch);
+  }, [fetchTasks]);
 
   /* ── patch (field-level update) — pass auditMsg to log the change ── */
   const patch = useCallback(async (id, updates, auditMsg) => {
     setTasks(ts => ts.map(t => t.id===id ? { ...t, ...updates, updatedAt:"just now", updatedTs:Date.now() } : t));
-    await apiFetch(`/api/tasks/${id}`, { method:"PATCH", body: JSON.stringify(buildDbPatch(updates)) });
+    if (!supabase) return;
+    const dbPatch = buildDbPatch(updates);
+    await supabase.from("tasks").update(dbPatch).eq("id", id);
     if (auditMsg && currentUser) {
-      await apiFetch("/api/audit", { method:"POST", body: JSON.stringify({ task_id:id, action:auditMsg, by_user:currentUser }) });
+      await supabase.from("audit_log").insert({ task_id: id, action: auditMsg, by_user: currentUser });
     }
   }, [currentUser]);
 
   /* ── patchUpdate (description / files) ── */
   const patchUpdate = useCallback(async (id, updates) => {
     setTasks(ts => ts.map(t => t.id===id ? { ...t, update:{...(t.update||{}),...updates}, updatedAt:"just now", updatedTs:Date.now() } : t));
-    if (updates.description !== undefined) {
-      await apiFetch(`/api/tasks/${id}`, { method:"PATCH", body: JSON.stringify({ description: updates.description }) });
-    }
+    if (!supabase) return;
+    if (updates.description !== undefined)
+      await supabase.from("tasks").update({ description: updates.description }).eq("id", id);
   }, []);
 
-  /* ── Local effort cache — survives API outages ── */
+  /* ── Local effort cache — survives Supabase RLS / SELECT blocks ── */
   const EFFORT_CACHE = "gyftr_effort_log";
   const cacheEntry = (taskId, date, hours, status) => {
     try {
@@ -52,17 +64,16 @@ export function useTaskStore(currentUser) {
   const addEffort = useCallback(async (id, entry) => {
     cacheEntry(id, entry.date, entry.hours, entry.status);
     setTasks(ts => ts.map(t => t.id===id ? { ...t, effort:[...(t.effort||[]),entry], updatedAt:"just now", updatedTs:Date.now() } : t));
-    try {
-      await apiFetch("/api/effort", { method:"POST", body: JSON.stringify({
-        task_id: id, date: entry.date, status: entry.status,
-        hours: entry.hours, manual: entry.manual || false,
-      }) });
-    } catch (err) {
-      console.error("[useTaskStore] addEffort failed:", err.message);
-    }
+    if (!supabase) return;
+    const { error } = await supabase.from("effort_entries").insert({
+      task_id: id, date: entry.date, status: entry.status,
+      hours: entry.hours, manual: entry.manual || false,
+    });
+    if (error) console.error("[useTaskStore] addEffort insert failed:", error.message);
+    await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, []);
 
-  /* ── stopTimerAndLog — stops timer + logs effort atomically to prevent race conditions ── */
+  /* ── stopTimerAndLog — atomic: stops timer + logs effort in one flow to prevent race conditions ── */
   const stopTimerAndLog = useCallback(async (task, hours) => {
     const entry = { date: todayISO(), status: task.effortStatus, hours: Math.round(hours * 100) / 100 };
     cacheEntry(task.id, entry.date, entry.hours, entry.status);
@@ -71,14 +82,13 @@ export function useTaskStore(currentUser) {
       effort: [...(t.effort || []), entry],
       updatedAt: "just now", updatedTs: Date.now(),
     } : t));
-    await apiFetch(`/api/tasks/${task.id}`, { method:"PATCH", body: JSON.stringify({ running: false, startedAt: null }) });
-    try {
-      await apiFetch("/api/effort", { method:"POST", body: JSON.stringify({
-        task_id: task.id, date: entry.date, status: entry.status, hours: entry.hours, manual: false,
-      }) });
-    } catch (err) {
-      console.error("[useTaskStore] effort insert failed:", err.message, "— hours saved to localStorage cache");
-    }
+    if (!supabase) return;
+    // Stop the timer in DB first — prevents subscription refetch from showing it as still running
+    await supabase.from("tasks").update({ running: false, started_at: null, updated_at: new Date() }).eq("id", task.id);
+    const { error } = await supabase.from("effort_entries").insert({
+      task_id: task.id, date: entry.date, status: entry.status, hours: entry.hours, manual: false,
+    });
+    if (error) console.error("[useTaskStore] effort_entries insert failed:", error.message, "— hours saved to localStorage cache");
   }, []);
 
   /* ── removeEffort ── */
@@ -90,7 +100,9 @@ export function useTaskStore(currentUser) {
       if (entry?._id) removedId = entry._id;
       return { ...t, effort:(t.effort||[]).filter((_,i)=>i!==idx), updatedAt:"just now", updatedTs:Date.now() };
     }));
-    if (removedId) await apiFetch(`/api/effort/${removedId}`, { method:"DELETE" });
+    if (!supabase) return;
+    if (removedId) await supabase.from("effort_entries").delete().eq("id", removedId);
+    await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, []);
 
   /* ── addComment ── */
@@ -99,55 +111,62 @@ export function useTaskStore(currentUser) {
     const ts  = now.toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
     const c   = { a: currentUser, r: role, t: body, ts };
     setTasks(ts2 => ts2.map(t => t.id===id ? { ...t, comments:[...(t.comments||[]),c], updatedAt:"just now", updatedTs:Date.now() } : t));
-    await apiFetch("/api/comments", { method:"POST", body: JSON.stringify({ task_id:id, author:currentUser, role, body }) });
+    if (!supabase) return;
+    await supabase.from("comments").insert({ task_id:id, author:currentUser, role, body });
+    await supabase.from("tasks").update({ updated_at: new Date() }).eq("id", id);
   }, [currentUser]);
 
   /* ── addTask ── */
   const addTask = useCallback(async (f, { onSuccess, onError }) => {
+    // Generate next ID
     let id;
-    try {
-      const { nextId } = await apiFetch("/api/tasks/next-id");
-      id = nextId;
-    } catch {
+    if (!supabase) {
       id = "MKT-" + String(tasks.reduce((m,t)=>Math.max(m,parseInt((t.id.split("-")[1])||"0",10)),0)+1).padStart(2,"0");
+    } else {
+      const { data } = await supabase.from("tasks").select("id");
+      const maxNum   = data?.length ? Math.max(...data.map(t=>parseInt(t.id.split("-")[1]||"0",10))) : 0;
+      id = "MKT-" + String(maxNum+1).padStart(2,"0");
     }
 
+    const dbRow  = taskToDb(f, id);
     const uiTask = dbToTask({
-      id, team: f.team || "Content", property: f.property, task: f.task?.trim(),
-      type: f.type, owner: f.assignee || f.owner, business_owner: f.businessOwner,
-      priority: f.priority, effort_status: "Discussion", project_status: "Discussion",
+      ...dbRow, business_owner: f.businessOwner,
+      effort_status: "Discussion", project_status: "Discussion",
       lock_state: "unlocked", running: false, started_at: null,
       effort_entries: [], comments: [], audit_log: [], task_files: [],
       description: "", delivered: null,
       updated_at: new Date().toISOString(), created_at: new Date().toISOString(),
+      // createdAt for UI
+      createdAt: new Date().toISOString().slice(0, 10),
     });
 
     setTasks(ts => [uiTask, ...ts]);
     onSuccess(id);
 
-    try {
-      await apiFetch("/api/tasks", { method:"POST", body: JSON.stringify({
-        id, team: f.team || "Content", property: f.property,
-        task: f.task?.trim(), type: f.type,
-        owner: f.assignee || f.owner, business_owner: f.businessOwner,
-        priority: f.priority,
-      }) });
-      await apiFetch("/api/audit", { method:"POST", body: JSON.stringify([
-        { task_id:id, action:"Created task",                         by_user:currentUser },
-        { task_id:id, action:`Assigned to ${f.assignee||f.owner}`,  by_user:currentUser },
-      ]) });
-      fetchTasks();
-    } catch (err) {
-      console.error("Create task failed:", err.message);
-      onError(err.message);
+    if (!supabase) return;
+    const { error } = await supabase.from("tasks").insert(dbRow);
+    if (error) {
+      console.error("Create task failed:", error.message);
+      onError(error.message);
       setTasks(ts => ts.filter(t => t.id !== id));
+      return;
     }
+    await supabase.from("audit_log").insert([
+      { task_id:id, action:"Created task", by_user:currentUser },
+      { task_id:id, action:`Assigned to ${f.assignee||f.owner}`, by_user:currentUser },
+    ]);
+    fetchTasks();
   }, [tasks, currentUser, fetchTasks]);
 
   /* ── deleteTask ── */
   const deleteTask = useCallback(async (id) => {
     setTasks(ts => ts.filter(t => t.id !== id));
-    await apiFetch(`/api/tasks/${id}`, { method:"DELETE" });
+    if (!supabase) return;
+    await supabase.from("effort_entries").delete().eq("task_id", id);
+    await supabase.from("comments").delete().eq("task_id", id);
+    await supabase.from("audit_log").delete().eq("task_id", id);
+    await supabase.from("task_files").delete().eq("task_id", id);
+    await supabase.from("tasks").delete().eq("id", id);
   }, []);
 
   return { tasks, setTasks, loading, fetchTasks, patch, patchUpdate, addEffort, removeEffort, stopTimerAndLog, addComment, addTask, deleteTask };

@@ -8,7 +8,7 @@ import { Plus, ChevronDown, Clock, CalendarDays } from "lucide-react";
 import { Avatar, StatusChip } from "../ui";
 import { PROPERTIES, CREATIVE_PROPERTIES, STATUS_LIST, TASK_TYPES, CREATIVE_TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
 import { typeColor, fmtDate, fmtHrs, agingDays, taskNo, TODAY_ISO } from "../../utils";
-import { apiFetch } from "../../lib/api";
+import { supabase } from "../../lib/supabase";
 
 /* ── Helpers ── */
 const fmtH = (h) => {
@@ -107,17 +107,15 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
   const tasksSig = tasks.map(t => t.updatedTs).join(",");
 
   useEffect(() => {
+    if (!supabase) return;
     const run = ++fetchRef.current;
     const go = async () => {
-      const params = new URLSearchParams();
-      if (dateFrom) params.set("from", dateFrom);
-      if (dateTo)   params.set("to",   dateTo);
-      try {
-        const data = await apiFetch(`/api/effort?${params}`);
-        if (run === fetchRef.current) setRawEntries(data || []);
-      } catch (err) {
-        console.error("[Dashboard] effort query failed:", err.message);
-      }
+      let q = supabase.from("effort_entries").select("task_id, date, hours, status");
+      if (dateFrom) q = q.gte("date", dateFrom);
+      if (dateTo)   q = q.lte("date", dateTo);
+      const { data, error } = await q;
+      if (error) console.error("[Dashboard] effort_entries query failed:", error.message, error.details);
+      if (run === fetchRef.current) setRawEntries(data || []);
     };
     go();
   // eslint-disable-next-line react-hooks/exhaustive-deps
