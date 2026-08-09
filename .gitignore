@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .vercel
+
+# Local env files — never commit real secrets
+.env
+.env.local
+backend/.env

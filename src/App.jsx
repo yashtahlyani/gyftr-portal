@@ -24,7 +24,7 @@ const NAV = [
 ];
 
 export default function App() {
-  const { authed, setAuthed, currentUser, setCurrentUser, displayName, setDisplayName, role, setRole, userTeam, logout } = useAuth();
+  const { authed, setAuthed, currentUser, setCurrentUser, displayName, setDisplayName, role, setRole, userTeam, login, logout } = useAuth();
   const [view,       setView]       = useState("board");
   const [openId,     setOpenId]     = useState(null);
   const [openTab,    setOpenTab]    = useState("Update");
@@ -81,7 +81,7 @@ export default function App() {
   };
 
   if (!authed) {
-    return <Login onIn={(name) => { setAuthed(true); if (name) setCurrentUser(name); }}/>;
+    return <Login login={login} onIn={(name) => { setAuthed(true); if (name) setCurrentUser(name); }}/>;
   }
 
   if (loading) {

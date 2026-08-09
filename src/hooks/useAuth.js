@@ -1,6 +1,11 @@
 /* ─── hooks/useAuth.js ─── */
 import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import {
+  CognitoUserPool,
+  CognitoUser,
+  AuthenticationDetails,
+} from "amazon-cognito-identity-js";
+import { setAuthToken } from "../lib/api";
 import { CURRENT_USER, USER_BY_EMAIL } from "../constants";
 
 // Role hierarchy:
@@ -22,60 +27,63 @@ function deriveRoleAndTeam(emailPrefix) {
   return                                      { role: "user",        team: "Content"  };
 }
 
+const userPool = new CognitoUserPool({
+  UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
+  ClientId:   import.meta.env.VITE_COGNITO_CLIENT_ID,
+});
+
+function applyIdToken(idToken, setState) {
+  const payload     = idToken.decodePayload();
+  const email       = payload.email || "";
+  const emailPrefix = email.split("@")[0].toLowerCase();
+  const name        = USER_BY_EMAIL[emailPrefix] || payload.name || payload["cognito:username"] || emailPrefix;
+  const derived     = deriveRoleAndTeam(emailPrefix);
+
+  setAuthToken(idToken.getJwtToken());
+  setState({ authed: true, currentUser: emailPrefix, displayName: name, role: derived.role, userTeam: derived.team });
+}
+
+const RESET_STATE = { authed: false, currentUser: CURRENT_USER, displayName: CURRENT_USER, role: "user", userTeam: "Content" };
+
 export function useAuth() {
-  const [authed,      setAuthed]      = useState(false);
-  const [currentUser, setCurrentUser] = useState(CURRENT_USER);
-  const [displayName, setDisplayName] = useState(CURRENT_USER);
-  const [role,        setRole]        = useState("user");
-  const [userTeam,    setUserTeam]    = useState("Content");
+  const [state, setState] = useState(RESET_STATE);
 
-  const applySession = async (session) => {
-    if (!session) { setAuthed(false); setRole("user"); setUserTeam("Content"); setDisplayName(CURRENT_USER); return; }
-    const emailPrefix = session.user.email?.split("@")[0] || "";
-    setAuthed(true);
-
-    // Profile overrides (role stored in DB beats hardcoded list)
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("role, full_name")
-      .eq("id", session.user.id)
-      .single();
-
-    const name = profileData?.full_name
-              || USER_BY_EMAIL[emailPrefix.toLowerCase()]
-              || session.user.user_metadata?.full_name
-              || session.user.user_metadata?.name
-              || emailPrefix;
-
-    const derived = deriveRoleAndTeam(emailPrefix);
-    // profiles.role can upgrade to super_admin but we trust our hardcoded list for team
-    const finalRole = profileData?.role === "super_admin" ? "super_admin" : derived.role;
-
-    setRole(finalRole);
-    setUserTeam(derived.team);
-    setCurrentUser(emailPrefix);
-    setDisplayName(name);
-  };
-
+  // Restore session from Cognito local storage on page load
   useEffect(() => {
-    if (!supabase) { setAuthed(true); return; }
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) applySession(data.session);
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) return;
+    cognitoUser.getSession((err, session) => {
+      if (err || !session?.isValid()) return;
+      applyIdToken(session.getIdToken(), setState);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      applySession(session);
-    });
-    return () => subscription.unsubscribe();
   }, []);
 
-  const logout = async () => {
-    if (supabase) await supabase.auth.signOut();
-    setAuthed(false);
-    setRole("user");
-    setUserTeam("Content");
-    setCurrentUser(CURRENT_USER);
-    setDisplayName(CURRENT_USER);
+  // Called from Login.jsx
+  const login = (email, password) =>
+    new Promise((resolve, reject) => {
+      const cognitoUser = new CognitoUser({ Username: email, Pool: userPool });
+      const authDetails = new AuthenticationDetails({ Username: email, Password: password });
+      cognitoUser.authenticateUser(authDetails, {
+        onSuccess(session) { applyIdToken(session.getIdToken(), setState); resolve(); },
+        onFailure(err)     { reject(err); },
+        newPasswordRequired() { reject(new Error("Password reset required — contact admin")); },
+      });
+    });
+
+  const logout = () => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (cognitoUser) cognitoUser.signOut();
+    setAuthToken(null);
+    setState(RESET_STATE);
   };
 
-  return { authed, setAuthed, currentUser, setCurrentUser, displayName, setDisplayName, role, setRole, userTeam, logout };
+  return {
+    ...state,
+    setAuthed:      (v) => setState(s => ({ ...s, authed: v })),
+    setCurrentUser: (v) => setState(s => ({ ...s, currentUser: v })),
+    setDisplayName: (v) => setState(s => ({ ...s, displayName: v })),
+    setRole:        (v) => setState(s => ({ ...s, role: v })),
+    login,
+    logout,
+  };
 }
