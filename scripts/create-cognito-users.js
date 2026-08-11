@@ -27,7 +27,8 @@ import {
 
 const USER_POOL_ID     = process.env.COGNITO_USER_POOL_ID;
 const REGION           = process.env.AWS_REGION || 'ap-south-1';
-const DEFAULT_PASSWORD = 'default@123';
+// Must include uppercase — Cognito pool policy requires it
+const DEFAULT_PASSWORD = 'Default@123';
 const EMAIL_DOMAIN     = '@gyftr.net';
 
 // All team members — prefix + display name
@@ -102,8 +103,20 @@ async function main() {
       created++;
     } catch (err) {
       if (err.name === 'UsernameExistsException') {
-        console.log('already exists (skipped)');
-        skipped++;
+        // User may exist from a previous failed password set — force permanent password
+        try {
+          await client.send(new AdminSetUserPasswordCommand({
+            UserPoolId: USER_POOL_ID,
+            Username:   email,
+            Password:   DEFAULT_PASSWORD,
+            Permanent:  true,
+          }));
+          console.log('already exists — password reset');
+          skipped++;
+        } catch (pwErr) {
+          console.log(`already exists — password FAILED — ${pwErr.message}`);
+          failed++;
+        }
       } else {
         console.log(`FAILED — ${err.message}`);
         failed++;
