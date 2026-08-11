@@ -21,8 +21,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ── Health check (no auth needed) ─────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ ok: true }));
+// ── Health check (no auth / DB needed) ────────────────────────────────────
+app.get('/health', (_req, res) => res.json({
+  ok: true,
+  auth: process.env.AUTH_DISABLED === 'true' ? 'disabled' : 'cognito',
+  db:   process.env.DB_DISABLED === 'true'   ? 'disabled' : 'configured',
+}));
 
 // ── Protected routes (all require valid Cognito token) ─────────────────────
 app.use('/api/tasks',    requireAuth, taskRoutes);
@@ -37,6 +41,7 @@ async function start() {
 }
 
 start().catch(err => {
-  console.error('[server] Failed to start:', err.message);
+  console.error('[server] Failed to start:', err.message || err);
+  if (err.stack) console.error(err.stack);
   process.exit(1);
 });
