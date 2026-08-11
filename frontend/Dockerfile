@@ -21,12 +21,12 @@ FROM ${BASE_IMAGE} AS build
 
 WORKDIR /app
 
-# Base image sets NODE_ENV=production which makes npm skip devDependencies
-# (vite lives in devDependencies). Force a full install for the build stage.
-ENV NODE_ENV=development
-
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+
+# Base image sets NODE_ENV=production, which makes npm skip devDependencies
+# (vite lives there). Override it for the install only — `vite build` must run
+# with NODE_ENV=production so the bundle is not built in dev mode.
+RUN NODE_ENV=development npm ci --include=dev
 
 COPY index.html vite.config.js eslint.config.js ./
 COPY public ./public
