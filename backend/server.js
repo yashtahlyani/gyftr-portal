@@ -21,12 +21,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ── Health check (no auth / DB needed) ────────────────────────────────────
-app.get('/health', (_req, res) => res.json({
-  ok: true,
-  auth: process.env.AUTH_DISABLED === 'true' ? 'disabled' : 'cognito',
-  db:   process.env.DB_DISABLED === 'true'   ? 'disabled' : 'configured',
-}));
+// ── Health check (no auth needed) ─────────────────────────────────────────
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
 // ── Protected routes (all require valid Cognito token) ─────────────────────
 app.use('/api/tasks',    requireAuth, taskRoutes);

@@ -1,13 +1,11 @@
 // db.js — RDS Postgres connection pool
 // Credentials come from env vars or AWS Secrets Manager (if AWS_SECRET_NAME is set).
-// Set DB_DISABLED=true to start the API without a database (temporary).
 
 import pg from 'pg';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 const { Pool } = pg;
 let pool;
-let dbDisabled = false;
 
 async function getDbCredentials() {
   // If AWS_SECRET_NAME is set, pull credentials from Secrets Manager
@@ -34,21 +32,12 @@ async function getDbCredentials() {
 }
 
 export async function initDb() {
-  if (process.env.DB_DISABLED === 'true') {
-    dbDisabled = true;
-    console.warn(
-      '[db] DB_DISABLED=true — skipping Postgres connection. ' +
-      'API data routes will fail until DB is configured.'
-    );
-    return;
-  }
-
   const creds = await getDbCredentials();
 
   if (!creds.host || !creds.database || !creds.user || !creds.password) {
     throw new Error(
       'Database not configured. Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD ' +
-      '(or AWS_SECRET_NAME), or set DB_DISABLED=true temporarily.'
+      '(or AWS_SECRET_NAME for Secrets Manager).'
     );
   }
 
@@ -66,12 +55,6 @@ export async function initDb() {
 }
 
 export function query(sql, params) {
-  if (dbDisabled || !pool) {
-    const err = new Error(
-      'Database not available. Configure DB_* env vars (or AWS_SECRET_NAME) and unset DB_DISABLED.'
-    );
-    err.status = 503;
-    throw err;
-  }
+  if (!pool) throw new Error('DB not initialized — call initDb() first');
   return pool.query(sql, params);
 }
