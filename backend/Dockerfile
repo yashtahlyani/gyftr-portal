@@ -12,6 +12,7 @@ COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=7878
+ENV AWS_SECRET_NAME=gyftr/portal/db
 
 EXPOSE 7878
 
