@@ -14,11 +14,12 @@ React + Vite frontend. Express backend. AWS hosting.
 git clone <repo-url> gyftr-portal
 cd gyftr-portal
 
-# Frontend dependencies
-npm install
+# Install all (from repo root)
+npm run install:all
 
-# Backend dependencies
-cd backend && npm install && cd ..
+# Or separately:
+#   cd frontend && npm install
+#   cd backend && npm install
 
 # Migration script dependencies
 cd scripts && npm install && cd ..
@@ -83,9 +84,9 @@ Users can be reset individually from the Cognito console later.
 ### 5. Configure frontend environment
 
 ```bash
-cp .env.example .env
+cp frontend/.env.example frontend/.env
 # Fill in:
-#   VITE_API_URL=https://api.gyftr.net
+#   VITE_API_URL=https://backend-portal.gyftr.net
 #   VITE_COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
 #   VITE_COGNITO_CLIENT_ID=...
 ```
@@ -97,7 +98,7 @@ cp .env.example .env
 On the EC2 server, create `/app/gyftr-portal/backend/.env`:
 
 ```
-PORT=3001
+PORT=7878
 AWS_SECRET_NAME=gyftr/portal/db
 COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
 COGNITO_CLIENT_ID=...
@@ -110,9 +111,18 @@ FRONTEND_URL=https://portal.gyftr.net
 ### 7. Build & deploy frontend
 
 ```bash
+cd frontend
 npm run build
 aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
 aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
+```
+
+Local Docker (both services):
+```bash
+cp .env.example .env   # fill values
+docker compose up --build
+# Frontend https://portal.gyftr.net  |  Backend https://backend-portal.gyftr.net
+# (local compose maps to frontend :7867 / backend :7878)
 ```
 
 ---
@@ -162,12 +172,13 @@ All users: `<prefix>@gyftr.net` / `default@123`
 
 | File | What to change |
 |---|---|
-| `src/constants/index.js` | Add/remove team members, properties, task types |
-| `src/hooks/useAuth.js` | Add/remove super admin or manager emails |
+| `frontend/src/constants/index.js` | Add/remove team members, properties, task types |
+| `frontend/src/hooks/useAuth.js` | Add/remove super admin or manager emails |
 | `backend/routes/tasks.js` | Task API logic |
 | `backend/routes/effort.js` | Effort logging API |
 | `backend/db.js` | DB connection (Secrets Manager or direct) |
 | `infra/aws-setup.md` | Full AWS setup instructions |
+| `docker-compose.yml` | Local frontend + backend containers |
 
 ---
 

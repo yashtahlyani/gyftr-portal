@@ -1,0 +1,69 @@
+version: 0.2
+
+# CodeBuild buildspec — GyFTR Portal Frontend
+# Project settings:
+#   - Source: this repo (buildspec path: frontend/buildspec.yml)
+#   - Environment: privileged = true (Docker)
+#   - Compute: ARM / Graviton (linux/arm64) to match base image
+#   - Env vars (set in CodeBuild project or Parameter Store):
+#       AWS_DEFAULT_REGION=ap-south-1
+#       IMAGE_REPO_NAME=gyftr-portal-frontend
+#       VITE_API_URL=https://backend-portal.gyftr.net
+#       VITE_COGNITO_USER_POOL_ID=...
+#       VITE_COGNITO_CLIENT_ID=...
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: ap-south-1
+    AWS_ACCOUNT_ID: "653380732738"
+    IMAGE_REPO_NAME: gyftr-portal-frontend
+    IMAGE_TAG: latest
+    VITE_API_URL: https://backend-portal.gyftr.net
+    # Override these in the CodeBuild project (do not commit real IDs if sensitive):
+    VITE_COGNITO_USER_POOL_ID: ""
+    VITE_COGNITO_CLIENT_ID: ""
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${IMAGE_TAG:-$COMMIT_HASH}
+      - echo Building frontend image $REPOSITORY_URI:$IMAGE_TAG
+      - |
+        if [ -z "$VITE_COGNITO_USER_POOL_ID" ] || [ -z "$VITE_COGNITO_CLIENT_ID" ]; then
+          echo "WARNING: VITE_COGNITO_USER_POOL_ID / VITE_COGNITO_CLIENT_ID not set — login will fail until configured in CodeBuild env"
+        fi
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - |
+        docker build \
+          --platform linux/arm64 \
+          --build-arg VITE_API_URL=$VITE_API_URL \
+          --build-arg VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID \
+          --build-arg VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID \
+          -t $REPOSITORY_URI:$IMAGE_TAG \
+          -t $REPOSITORY_URI:latest \
+          -f frontend/Dockerfile \
+          ./frontend
+      - echo Build completed on `date`
+
+  post_build:
+    commands:
+      - echo Pushing frontend image...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+      - printf '[{"name":"gyftr-frontend","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - echo Writing imageDetail.json for CodePipeline / ECS...
+      - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+      - echo Frontend image pushed: $REPOSITORY_URI:$IMAGE_TAG
+
+artifacts:
+  files:
+    - imagedefinitions.json
+    - imageDetail.json
+  discard-paths: yes

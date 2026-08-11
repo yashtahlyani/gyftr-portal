@@ -12,7 +12,7 @@ import effortRoutes from './routes/effort.js';
 import commentRoutes from './routes/comments.js';
 
 const app  = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 7878;
 
 // ── Middleware ─────────────────────────────────────────────────────────────
 app.use(cors({

@@ -4,7 +4,7 @@
 
 import { fmtDate, relativeTime } from '../utils';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7878';
 
 // ── Token store — set by useAuth after Cognito login ──────────────────────
 let _token = null;

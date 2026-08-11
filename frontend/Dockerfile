@@ -1,0 +1,53 @@
+# GyFTR Portal — Frontend (React + Vite → static serve)
+# Base image is ARM — build/run on linux/arm64 (e.g. Graviton).
+#
+# Build:
+#   docker build --platform linux/arm64 \
+#     --build-arg VITE_API_URL=https://backend-portal.gyftr.net \
+#     --build-arg VITE_COGNITO_USER_POOL_ID=ap-south-1_xxx \
+#     --build-arg VITE_COGNITO_CLIENT_ID=xxx \
+#     -f frontend/Dockerfile -t gyftr-portal-frontend ./frontend
+#
+# Or from repo root:
+#   docker compose up --build
+#
+# Run:
+#   docker run --platform linux/arm64 -p 7867:7867 gyftr-portal-frontend
+
+ARG BASE_IMAGE=653380732738.dkr.ecr.ap-south-1.amazonaws.com/node-24.18.0-alpine3.24-arm:node-24.18.0-alpine3.24-arm
+
+# ── Stage 1: build ──────────────────────────────────────────────────────────
+FROM ${BASE_IMAGE} AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY index.html vite.config.js eslint.config.js ./
+COPY public ./public
+COPY src ./src
+
+# Vite embeds these at build time
+ARG VITE_API_URL
+ARG VITE_COGNITO_USER_POOL_ID
+ARG VITE_COGNITO_CLIENT_ID
+
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_COGNITO_USER_POOL_ID=$VITE_COGNITO_USER_POOL_ID \
+    VITE_COGNITO_CLIENT_ID=$VITE_COGNITO_CLIENT_ID
+
+RUN npm run build
+
+# ── Stage 2: serve static files ─────────────────────────────────────────────
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+
+RUN npm install -g serve@14
+
+COPY --from=build /app/dist ./dist
+
+EXPOSE 7867
+
+CMD ["serve", "-s", "dist", "-l", "7867"]

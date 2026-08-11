@@ -1,16 +1,44 @@
-# React + Vite
+# GyFTR Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Internal work-tracking portal — React frontend + Express backend.
 
-Currently, two official plugins are available:
+## Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```
+gyftr-portal/
+├── frontend/          # React + Vite app (+ Dockerfile)
+├── backend/           # Express API (+ Dockerfile)
+├── docker-compose.yml # Local run of both services
+├── .env.example
+├── package.json       # Convenience scripts
+├── infra/             # AWS setup notes
+└── scripts/           # Migration / Cognito helpers
+```
 
-## React Compiler
+## Local development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm run install:all
 
-## Expanding the ESLint configuration
+# Terminal 1 — API
+cp backend/.env.example backend/.env   # fill values
+npm run dev:backend
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+# Terminal 2 — UI
+cp frontend/.env.example frontend/.env # fill values
+npm run dev:frontend
+```
+
+## Docker (both services)
+
+```bash
+cp .env.example .env   # fill values
+docker compose up --build
+```
+
+- Frontend: https://portal.gyftr.net  
+- Backend:  https://backend-portal.gyftr.net  
+
+Local Compose ports: frontend `:7867`, backend `:7878`.
+
+See `HANDOVER.md` and `infra/aws-setup.md` for production AWS deployment.

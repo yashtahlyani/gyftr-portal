@@ -42,7 +42,7 @@ Full migration from Vercel + Supabase to AWS.
 5. User pool name: `gyftr-portal-users`.
 6. App client name: `gyftr-portal-web`, type: **Public client**, no secret.
 7. Note the **User Pool ID** (e.g. `ap-south-1_AbcXYZ`) and **Client ID**.
-8. Put these in frontend `.env`:
+8. Put these in `frontend/.env`:
    ```
    VITE_COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
    VITE_COGNITO_CLIENT_ID=...
@@ -56,7 +56,7 @@ Full migration from Vercel + Supabase to AWS.
 1. Go to **EC2 → Launch instance**.
 2. AMI: **Amazon Linux 2023**, instance type: `t3.small`.
 3. Key pair: create `gyftr-portal-key` and download `.pem`.
-4. Security group `gyftr-ec2-sg`: inbound port 3001 from ALB sg, port 22 from your IP only.
+4. Security group `gyftr-ec2-sg`: inbound port 7878 from ALB sg, port 22 from your IP only.
 5. IAM role: create role `gyftr-ec2-role` with policies:
    - `SecretsManagerReadWrite` (or a custom policy scoped to `gyftr/portal/*`)
 6. Assign the IAM role to the EC2 instance.
@@ -67,7 +67,7 @@ Full migration from Vercel + Supabase to AWS.
    cd /app/gyftr-portal/backend
    npm install
    # Create /app/gyftr-portal/backend/.env with:
-   # PORT=3001
+   # PORT=7878
    # AWS_SECRET_NAME=gyftr/portal/db
    # COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
    # COGNITO_CLIENT_ID=...
@@ -88,10 +88,10 @@ Full migration from Vercel + Supabase to AWS.
 
 1. Go to **EC2 → Load Balancers → Create ALB**.
 2. Name: `gyftr-api-alb`, scheme: **Internet-facing**.
-3. Listener: HTTPS 443 (attach an ACM certificate for `api.gyftr.net`).
-4. Target group: `gyftr-api-tg`, protocol HTTP, port 3001, target: the EC2 instance.
-5. In Route53 (or your DNS): add `api.gyftr.net` CNAME → ALB DNS name.
-6. Set `VITE_API_URL=https://api.gyftr.net` in the frontend `.env`.
+3. Listener: HTTPS 443 (attach an ACM certificate for `backend-portal.gyftr.net`).
+4. Target group: `gyftr-api-tg`, protocol HTTP, port 7878, target: the EC2 instance.
+5. In Route53 (or your DNS): add `backend-portal.gyftr.net` CNAME → ALB DNS name.
+6. Set `VITE_API_URL=https://backend-portal.gyftr.net` in `frontend/.env`.
 
 ---
 
@@ -101,7 +101,7 @@ Full migration from Vercel + Supabase to AWS.
 2. Uncheck "Block all public access" — the bucket is served via CloudFront only (keep bucket policy private).
 3. **Build the frontend**:
    ```bash
-   cd /path/to/gyftr-portal
+   cd /path/to/gyftr-portal/frontend
    npm install
    npm run build   # outputs to dist/
    ```
@@ -131,6 +131,7 @@ pm2 restart gyftr-api
 
 **Frontend** (from your laptop):
 ```bash
+cd frontend
 npm run build
 aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
 aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
@@ -167,10 +168,10 @@ psql "postgres://gyftr_admin:<pass>@<rds-endpoint>:5432/postgres" -f data.sql
 
 | Variable | Where | Value |
 |---|---|---|
-| `VITE_API_URL` | Frontend `.env` | `https://api.gyftr.net` |
-| `VITE_COGNITO_USER_POOL_ID` | Frontend `.env` | From Cognito console |
-| `VITE_COGNITO_CLIENT_ID` | Frontend `.env` | From Cognito console |
-| `PORT` | Backend `.env` | `3001` |
+| `VITE_API_URL` | `frontend/.env` | `https://backend-portal.gyftr.net` |
+| `VITE_COGNITO_USER_POOL_ID` | `frontend/.env` | From Cognito console |
+| `VITE_COGNITO_CLIENT_ID` | `frontend/.env` | From Cognito console |
+| `PORT` | Backend `.env` | `7878` |
 | `AWS_SECRET_NAME` | Backend `.env` | `gyftr/portal/db` |
 | `COGNITO_USER_POOL_ID` | Backend `.env` | Same as frontend |
 | `COGNITO_CLIENT_ID` | Backend `.env` | Same as frontend |
@@ -189,6 +190,9 @@ psql "postgres://gyftr_admin:<pass>@<rds-endpoint>:5432/postgres" -f data.sql
 | `backend/routes/tasks.js` | Task CRUD API |
 | `backend/routes/effort.js` | Effort entries API |
 | `backend/routes/comments.js` | Comments + audit log API |
-| `src/lib/api.js` | Frontend API client (fetch wrapper) |
-| `src/hooks/useAuth.js` | Cognito login/session |
-| `src/hooks/useTaskStore.js` | All task state + DB operations |
+| `frontend/src/lib/api.js` | Frontend API client (fetch wrapper) |
+| `frontend/src/hooks/useAuth.js` | Cognito login/session |
+| `frontend/src/hooks/useTaskStore.js` | All task state + DB operations |
+| `frontend/Dockerfile` | Frontend container image |
+| `backend/Dockerfile` | Backend container image |
+| `docker-compose.yml` | Local multi-service run |

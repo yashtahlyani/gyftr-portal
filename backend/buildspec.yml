@@ -1,0 +1,56 @@
+version: 0.2
+
+# CodeBuild buildspec — GyFTR Portal Backend
+# Project settings:
+#   - Source: this repo (buildspec path: backend/buildspec.yml)
+#   - Environment: Amazon Linux 2 / Ubuntu, privileged = true (Docker)
+#   - Compute: ARM / Graviton (linux/arm64) to match base image
+#   - Env vars (optional overrides):
+#       AWS_DEFAULT_REGION=ap-south-1
+#       IMAGE_REPO_NAME=gyftr-portal-backend
+#       IMAGE_TAG=latest
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: ap-south-1
+    AWS_ACCOUNT_ID: "653380732738"
+    IMAGE_REPO_NAME: gyftr-portal-backend
+    IMAGE_TAG: latest
+
+phases:
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${IMAGE_TAG:-$COMMIT_HASH}
+      - echo Building backend image $REPOSITORY_URI:$IMAGE_TAG
+
+  build:
+    commands:
+      - echo Build started on `date`
+      - |
+        docker build \
+          --platform linux/arm64 \
+          -t $REPOSITORY_URI:$IMAGE_TAG \
+          -t $REPOSITORY_URI:latest \
+          -f backend/Dockerfile \
+          ./backend
+      - echo Build completed on `date`
+
+  post_build:
+    commands:
+      - echo Pushing backend image...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - docker push $REPOSITORY_URI:latest
+      - printf '[{"name":"gyftr-backend","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - echo Writing imageDetail.json for CodePipeline / ECS...
+      - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+      - echo Backend image pushed: $REPOSITORY_URI:$IMAGE_TAG
+
+artifacts:
+  files:
+    - imagedefinitions.json
+    - imageDetail.json
+  discard-paths: yes
