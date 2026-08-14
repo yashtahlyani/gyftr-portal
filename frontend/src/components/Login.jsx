@@ -34,6 +34,40 @@ const RULES = [
   { label: "One symbol",              test: (p) => /[^A-Za-z0-9]/.test(p) },
 ];
 
+/* A password field the user can reveal. Several people reported being "unable
+   to enter the password": the fields had no autocomplete hints and were not
+   inside a <form>, so Chrome's password manager treated them as a login form,
+   offered its generated password over the top, and fought whatever was typed.
+   Proper hints plus a real form stop that, and being able to see the value
+   removes the remaining doubt. */
+function PasswordField({ label, value, onChange, name, autoComplete, autoFocus, onEnter }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+        <label htmlFor={name} style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>{label}</label>
+        <span onClick={() => setShown(v => !v)}
+          style={{ fontSize:11, fontWeight:700, color:"var(--pop)", cursor:"pointer", userSelect:"none" }}>
+          {shown ? "Hide" : "Show"}
+        </span>
+      </div>
+      <input
+        className="gx-input"
+        style={{ margin:"6px 0 14px" }}
+        id={name}
+        name={name}
+        type={shown ? "text" : "password"}
+        value={value}
+        placeholder="••••••••"
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter" && onEnter) { e.preventDefault(); onEnter(); } }}
+      />
+    </>
+  );
+}
+
 const Shell = ({ children }) => (
   <div className="gx-root" style={{ minHeight:"100vh", display:"grid", placeItems:"center", background:"radial-gradient(120% 120% at 80% 0%, #E9F4D5 0%, #F3F6F2 42%)" }}>
     <style>{STYLES}</style>
@@ -60,7 +94,8 @@ function SetPassword({ email, completeNewPassword, onCancel }) {
   const mismatch = p2.length > 0 && p1 !== p2;
   const ready    = failed.length === 0 && p1 === p2 && p2.length > 0;
 
-  const submit = async () => {
+  const submit = async (e) => {
+    if (e) e.preventDefault();
     if (!ready || loading) return;
     setErr(""); setLoad(true);
     try {
@@ -81,15 +116,18 @@ function SetPassword({ email, completeNewPassword, onCancel }) {
           {email ? <> as <b style={{ color:"var(--ink)" }}>{email}</b></> : null}.
         </p>
 
-        <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>New password</label>
-        <input className="gx-input" style={{ margin:"6px 0 14px" }} type="password" value={p1}
-          placeholder="••••••••" autoFocus
-          onChange={e=>setP1(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+        <form onSubmit={submit}>
+        {/* Hidden, but it tells the password manager which account the new
+            password belongs to. Without it Chrome may save it against the
+            wrong entry, or refuse to offer to save it at all. */}
+        <input type="text" name="username" autoComplete="username" value={email || ""}
+          readOnly hidden aria-hidden="true"/>
 
-        <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Confirm new password</label>
-        <input className="gx-input" style={{ margin:"6px 0 14px" }} type="password" value={p2}
-          placeholder="••••••••"
-          onChange={e=>setP2(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+        <PasswordField label="New password" name="new-password" autoComplete="new-password"
+          value={p1} onChange={setP1} autoFocus onEnter={submit}/>
+
+        <PasswordField label="Confirm new password" name="confirm-password" autoComplete="new-password"
+          value={p2} onChange={setP2} onEnter={submit}/>
 
         <div style={{ marginBottom:14 }}>
           {RULES.map(r => {
@@ -109,11 +147,11 @@ function SetPassword({ email, completeNewPassword, onCancel }) {
 
         {err && <div style={{ fontSize:12, color:"#C42424", marginBottom:10, fontWeight:600 }}>{err}</div>}
 
-        <button className="gx-btn gx-btn-dark" disabled={!ready || loading}
-          style={{ width:"100%", justifyContent:"center", padding:"11px", opacity:(!ready||loading)?.5:1 }}
-          onClick={submit}>
+        <button type="submit" className="gx-btn gx-btn-dark" disabled={!ready || loading}
+          style={{ width:"100%", justifyContent:"center", padding:"11px", opacity:(!ready||loading)?.5:1 }}>
           {loading ? "Saving…" : "Set password & sign in"}
         </button>
+        </form>
 
         <div style={{ textAlign:"center", marginTop:14 }}>
           <span onClick={onCancel} style={{ fontSize:12.5, fontWeight:600, color:"var(--ink-soft)", cursor:"pointer" }}>
@@ -132,7 +170,8 @@ export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, 
   const [err,     setErr]     = useState("");
   const [loading, setLoading] = useState(false);
 
-  const signIn = async () => {
+  const signIn = async (e) => {
+    if (e) e.preventDefault();
     setErr(""); setLoading(true);
     try {
       const res = await login(email, pass);
@@ -162,19 +201,21 @@ export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, 
         <p style={{ fontSize:13.5, color:"var(--ink-soft)", margin:"0 0 22px" }}>
           Track every piece of content &amp; creative work and the effort behind it.
         </p>
-        <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Company email</label>
-        <input className="gx-input" style={{ margin:"6px 0 14px" }} type="email" value={email}
+        <form onSubmit={signIn}>
+        <label htmlFor="username" style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Company email</label>
+        <input className="gx-input" style={{ margin:"6px 0 14px" }} type="email"
+          id="username" name="username" autoComplete="username" value={email}
           placeholder="enter your email address"
-          onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&signIn()}/>
-        <label style={{ fontSize:12, fontWeight:700, color:"var(--ink-soft)" }}>Password</label>
-        <input className="gx-input" type="password" placeholder="••••••••" style={{ margin:"6px 0 18px" }}
-          value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&signIn()}/>
+          onChange={e=>setEmail(e.target.value)}/>
+
+        <PasswordField label="Password" name="current-password" autoComplete="current-password"
+          value={pass} onChange={setPass} onEnter={signIn}/>
         {err && <div style={{ fontSize:12, color:"#C42424", marginBottom:10, fontWeight:600 }}>{err}</div>}
-        <button className="gx-btn gx-btn-dark" disabled={loading}
-          style={{ width:"100%", justifyContent:"center", padding:"11px", opacity:loading?.6:1 }}
-          onClick={signIn}>
+        <button type="submit" className="gx-btn gx-btn-dark" disabled={loading}
+          style={{ width:"100%", justifyContent:"center", padding:"11px", opacity:loading?.6:1 }}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
+        </form>
         <div style={{ display:"flex", justifyContent:"space-between", marginTop:14, fontSize:12.5, fontWeight:600 }}>
           <span style={{ color:"var(--ink-soft)" }}>GyFTR staff only</span>
           <span style={{ color:"var(--ink-soft)" }}>Contact GyFTR admin to reset</span>
