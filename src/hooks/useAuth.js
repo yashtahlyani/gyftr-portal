@@ -5,7 +5,7 @@ import {
   CognitoUser,
   AuthenticationDetails,
 } from "amazon-cognito-identity-js";
-import { setAuthToken, apiFetch } from "../lib/api";
+import { setAuthToken, setAuthTokenProvider, setOnSessionExpired, apiFetch } from "../lib/api";
 
 // Cognito authenticates. The backend `users` table decides name, role and team
 // (see backend/identity.js). Nothing about the roster lives in this file — a
@@ -26,6 +26,20 @@ const RESET_STATE = {
   role: "user", userTeam: "Content", profileError: null,
 };
 
+// Returns a currently-valid ID token, or null if the session cannot be
+// renewed. getSession() uses the refresh token to mint a new ID token when the
+// old one has expired, which is what stops the app breaking after an hour.
+function freshIdToken() {
+  return new Promise((resolve) => {
+    const cognitoUser = userPool.getCurrentUser();
+    if (!cognitoUser) return resolve(null);
+    cognitoUser.getSession((err, session) => {
+      if (err || !session?.isValid()) return resolve(null);
+      resolve(session.getIdToken().getJwtToken());
+    });
+  });
+}
+
 export function useAuth() {
   const [state, setState] = useState(RESET_STATE);
   // Set when Cognito answers a login with NEW_PASSWORD_REQUIRED — the account
@@ -35,6 +49,7 @@ export function useAuth() {
   // Exchange a valid Cognito session for the directory profile.
   const loadProfile = useCallback(async (idToken) => {
     setAuthToken(idToken.getJwtToken());
+    setAuthTokenProvider(freshIdToken);
     const claims = idToken.decodePayload();
     const email  = (claims.email || "").toLowerCase();
     try {
@@ -73,6 +88,18 @@ export function useAuth() {
       loadProfile(session.getIdToken());
     });
   }, [loadProfile]);
+
+  // When the refresh token itself has expired there is nothing left to renew.
+  // Drop the user back to the login screen rather than letting every request
+  // fail with 401 behind a still-rendered UI.
+  useEffect(() => {
+    setOnSessionExpired(() => {
+      setAuthToken(null);
+      setAuthTokenProvider(null);
+      setState({ ...RESET_STATE, profileError: "Your session expired — please sign in again." });
+    });
+    return () => setOnSessionExpired(null);
+  }, []);
 
   // Called from Login.jsx.
   // Resolves { mustChangePassword: true } instead of signing in when the
@@ -130,6 +157,7 @@ export function useAuth() {
     const cognitoUser = userPool.getCurrentUser();
     if (cognitoUser) cognitoUser.signOut();
     setAuthToken(null);
+    setAuthTokenProvider(null);
     setPendingChallenge(null);
     setState(RESET_STATE);
   };
