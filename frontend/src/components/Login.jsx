@@ -3,6 +3,27 @@ import { useState } from "react";
 import { STYLES } from "../lib/styles";
 import { GyftrLogo } from "./ui/GyftrLogo";
 
+/* Cognito's own wording is terse and sometimes misleading — "User does not
+   exist" for a typo'd address, and a raw network error when the API behind
+   sign-in is what actually failed. Translate the ones people hit. */
+function friendlyAuthError(err) {
+  const raw = err?.message || "Sign in failed";
+  const m = raw.toLowerCase();
+  if (m.includes("incorrect username or password") || m.includes("not authorized")) {
+    return "Incorrect email or password.";
+  }
+  if (m.includes("user does not exist")) {
+    return "No account for that email. Check the address, or contact an admin.";
+  }
+  if (m.includes("password attempts exceeded")) {
+    return "Too many attempts. Wait a few minutes and try again.";
+  }
+  if (m.includes("did not respond") || m.includes("could not reach the server")) {
+    return raw;   // already names the URL and the failure mode
+  }
+  return raw;
+}
+
 /* Mirrors the Cognito user pool password policy. Kept in step with it so the
    user is told what is wrong before the request round-trips. */
 const RULES = [
@@ -45,7 +66,7 @@ function SetPassword({ email, completeNewPassword, onCancel }) {
     try {
       await completeNewPassword(p1);
     } catch (e) {
-      setErr(e.message || "Could not set the new password");
+      setErr(friendlyAuthError(e));
     } finally {
       setLoad(false);
     }
@@ -118,7 +139,7 @@ export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, 
       // A temporary password stops here — SetPassword takes over.
       if (!res?.mustChangePassword) onIn();
     } catch (e) {
-      setErr(e.message || "Sign in failed");
+      setErr(friendlyAuthError(e));
     } finally {
       setLoading(false);
     }
