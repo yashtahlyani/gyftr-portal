@@ -13,10 +13,30 @@ export const setAuthToken = (t) => { _token = t; };
 export const getAuthToken = ()  => _token;
 
 // ── Base fetch with auth header ────────────────────────────────────────────
+// If the API host accepts the connection but never answers — a security group
+// dropping traffic, an ALB with no healthy target — fetch waits forever, and
+// the UI just spins with no error. Fail loudly instead.
+const REQUEST_TIMEOUT_MS = 15000;
+
 export async function apiFetch(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (_token) headers['Authorization'] = `Bearer ${_token}`;
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error(`The server did not respond within ${REQUEST_TIMEOUT_MS / 1000}s (${API_URL}). It may be down or unreachable.`);
+    }
+    throw new Error(`Could not reach the server at ${API_URL}. Check the API is running and its CORS origin matches this site.`);
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API error ${res.status}`);
