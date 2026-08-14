@@ -103,11 +103,11 @@ AWS setup for the GyFTR Marketing Portal. The stack is AWS-only: RDS Postgres, C
    ```bash
    cd /path/to/gyftr-portal
    npm install
-   npm run build   # outputs to dist/
+   npm run build   # outputs to frontend/dist/
    ```
 4. Upload `dist/` contents to S3:
    ```bash
-   aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
+   aws s3 sync frontend/dist/ s3://gyftr-portal-frontend/ --delete
    ```
 5. Go to **CloudFront → Create distribution**:
    - Origin: `gyftr-portal-frontend.s3.ap-south-1.amazonaws.com`
@@ -132,7 +132,7 @@ pm2 restart gyftr-api
 **Frontend** (from your laptop):
 ```bash
 npm run build
-aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
+aws s3 sync frontend/dist/ s3://gyftr-portal-frontend/ --delete
 aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
 ```
 
@@ -192,6 +192,6 @@ table and are edited in the portal under **Admin · PMO → Team Directory**.
 | `backend/routes/tasks.js` | Task CRUD API |
 | `backend/routes/effort.js` | Effort entries API |
 | `backend/routes/comments.js` | Comments + audit log API |
-| `src/lib/api.js` | Frontend API client (fetch wrapper) |
-| `src/hooks/useAuth.js` | Cognito login/session |
-| `src/hooks/useTaskStore.js` | All task state + DB operations |
+| `frontend/src/lib/api.js` | Frontend API client (fetch wrapper) |
+| `frontend/src/hooks/useAuth.js` | Cognito login/session |
+| `frontend/src/hooks/useTaskStore.js` | All task state + DB operations |

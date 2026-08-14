@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+frontend/dist
 dist-ssr
 *.local
 
@@ -28,4 +29,6 @@ dist-ssr
 # Local env files — never commit real secrets
 .env
 .env.local
+.env.*.local
+frontend/.env
 backend/.env

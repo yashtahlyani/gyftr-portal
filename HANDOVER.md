@@ -14,14 +14,8 @@ React + Vite frontend. Express backend. AWS hosting.
 git clone <repo-url> gyftr-portal
 cd gyftr-portal
 
-# Frontend dependencies
-npm install
-
-# Backend dependencies
-cd backend && npm install && cd ..
-
-# Migration script dependencies
-cd scripts && npm install && cd ..
+# Installs frontend, backend and scripts in one go
+npm run install:all
 ```
 
 ---
@@ -162,7 +156,7 @@ name column is kept in sync for display and CSV export.
 ### 5. Configure frontend environment
 
 ```bash
-cp .env.example .env
+cp frontend/.env.example frontend/.env
 # Fill in:
 #   VITE_API_URL=https://api.gyftr.net
 #   VITE_COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
@@ -189,8 +183,8 @@ FRONTEND_URL=https://portal.gyftr.net
 ### 7. Build & deploy frontend
 
 ```bash
-npm run build
-aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
+npm run build                    # outputs to frontend/dist
+aws s3 sync frontend/dist/ s3://gyftr-portal-frontend/ --delete
 aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
 ```
 
@@ -254,7 +248,7 @@ operation** — both domains already work side by side.
 
 | File | What to change |
 |---|---|
-| `src/constants/index.js` | Properties, task types, statuses, colours — **not people** |
+| `frontend/src/constants/index.js` | Properties, task types, statuses, colours — **not people** |
 | `backend/identity.js` | How a Cognito login maps to a directory user |
 | `backend/permissions.js` | Who can see and change what — the access rules |
 | `backend/routes/tasks.js` | Task API logic + who can see which tasks |
@@ -262,7 +256,7 @@ operation** — both domains already work side by side.
 | `backend/routes/effort.js` | Effort logging API |
 | `backend/schema.sql` | Tables/columns — applied automatically on backend boot |
 | `backend/db.js` | DB connection (Secrets Manager or direct) |
-| `src/lib/directory.js` | Frontend directory lookups (names, teams, colours) |
+| `frontend/src/lib/directory.js` | Frontend directory lookups (names, teams, colours) |
 | `scripts/roster.json` | One-time bootstrap roster (Cognito + first DB seed only) |
 | `infra/aws-setup.md` | Full AWS setup instructions |
 

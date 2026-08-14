@@ -17,17 +17,32 @@ The browser never talks to the database. Every read and write goes through the
 API, which verifies a Cognito ID token and applies the access rules in
 `backend/permissions.js`.
 
+## Project structure
+
+```
+gyftr-portal/
+├── frontend/          React + Vite UI  (Dockerfile, buildspec.yml)
+├── backend/           Express API      (Dockerfile, buildspec.yml)
+├── scripts/           Cognito / ops scripts, all with --dry-run
+├── infra/             AWS provisioning guide
+├── docker-compose.yml Local stack: Postgres + API + UI
+├── DEPLOY.md          Release runbook
+└── HANDOVER.md        Architecture, access levels, operations
+```
+
 ## Running locally
 
 ```bash
-npm install                       # frontend
-cd backend && npm install && cd ..
+npm run install:all                          # frontend + backend + scripts
 
-cp .env.example .env              # fill in VITE_COGNITO_* and VITE_API_URL
-cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env       # VITE_API_URL, VITE_COGNITO_*
+cp backend/.env.example  backend/.env        # DB, Cognito, CORS origin
 
-cd backend && node server.js      # API on :3001
-npm run dev                       # frontend on :5173
+npm run dev:backend                          # API on :3001
+npm run dev:frontend                         # UI  on :5173
+
+# or run the whole stack (Postgres + API + UI) in containers:
+cp .env.example .env && npm run docker:up    # UI on :8080
 ```
 
 ## Nothing is hardcoded
@@ -40,7 +55,7 @@ the portal, not in the source:
 | Who can log in | Cognito | Cognito console / `scripts/create-cognito-users.js` |
 | Name, team, access level | `users` table | Admin · PMO → **Team Directory** |
 | Property list and colours | `properties` table | Admin · PMO → **Manage Properties** |
-| Task types, statuses, priorities | `src/constants/index.js` | code (fixed vocabulary) |
+| Task types, statuses, priorities | `frontend/src/constants/index.js` | code (fixed vocabulary) |
 
 `backend/schema.sql` is applied automatically on API start-up, so there is no
 manual migration step.
