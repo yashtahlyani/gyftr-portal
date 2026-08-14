@@ -2,12 +2,15 @@
 import React, { useRef, useState } from "react";
 import { Plus, X, CalendarDays, Link } from "lucide-react";
 import { Caret } from "../ui";
-import { OWNERS, CREATIVE_OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
+import { EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
+import { useDirectory } from "../../lib/DirectoryProvider";
+import { withCurrent } from "../../lib/directory";
 import { teamOf, fmtDate, fmtHrs, todayISO } from "../../utils";
 
 export function DrawerUpdateTab({ task, patch, patchUpdate, stopTimerAndLog, addComment, isManager }) {
   const u = task.update || {};
-  const ownerList = task.team === "Creative" ? CREATIVE_OWNERS : OWNERS;
+  const { ownersFor } = useDirectory();
+  const ownerList = withCurrent(ownersFor(teamOf(task)), task.owner);
   const descRef = useRef(null);
   const [linkUrl,  setLinkUrl]  = useState("");
   const [linkDesc, setLinkDesc] = useState("");

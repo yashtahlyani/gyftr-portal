@@ -14,12 +14,11 @@ React + Vite frontend. Express backend. AWS hosting.
 git clone <repo-url> gyftr-portal
 cd gyftr-portal
 
-# Install all (from repo root)
-npm run install:all
+# Frontend dependencies
+npm install
 
-# Or separately:
-#   cd frontend && npm install
-#   cd backend && npm install
+# Backend dependencies
+cd backend && npm install && cd ..
 
 # Migration script dependencies
 cd scripts && npm install && cd ..
@@ -41,24 +40,21 @@ Full instructions with exact console steps: **`infra/aws-setup.md`**
 
 ---
 
-### 3. Migrate database from Supabase → RDS
+### 3. Database schema
 
-First, import the schema into RDS (get the schema from Supabase dashboard → SQL Editor → run `\d` or use pg_dump). Then run the data migration script:
+The migration off the old stack is **done** — the portal is AWS-only and there
+is no import step any more.
 
-```bash
-cd scripts
+The `tasks`, `effort_entries`, `comments`, `audit_log` and `task_files` tables
+must exist in RDS. Everything the portal added since — the `users` directory,
+the `properties` list, and the `owner_email` / `business_owner_email` columns —
+is created automatically by `backend/schema.sql`, which the API applies on every
+boot. It is additive and idempotent, so restarting the backend is always safe.
 
-# Set these env vars (use RDS credentials from step 2):
-export RDS_HOST=gyftr-portal.xxxx.ap-south-1.rds.amazonaws.com
-export RDS_USER=gyftr_admin
-export RDS_PASSWORD=yourpassword
-export RDS_DB=postgres
-
-# SUPABASE_PAT is already hardcoded in the script — just run it:
-node migrate-db.js
-```
-
-This copies all tasks, effort entries, comments, and audit logs from Supabase to RDS.
+On the very first boot the property list is seeded from
+`backend/seed/properties.json` (111 properties across both teams). That happens
+only while the table is empty, so properties added or removed in the portal are
+never resurrected by a restart.
 
 ---
 
@@ -76,8 +72,90 @@ export AWS_SECRET_ACCESS_KEY=...
 node create-cognito-users.js
 ```
 
-This creates **21 users** (all team members) with password `default@123`.
-Users can be reset individually from the Cognito console later.
+This creates **21 users** (all team members) with password `Default@123`, reading
+the roster from `scripts/roster.json`. Users can be reset individually from the
+Cognito console later.
+
+---
+
+### 4b. Sync Cognito → the `users` directory table
+
+```bash
+cd scripts
+# same Cognito env vars as above, plus RDS_HOST / RDS_USER / RDS_PASSWORD / RDS_DB
+
+node sync-users.js --dry-run   # look first
+node sync-users.js
+```
+
+Then repair the links on tasks that already exist:
+
+```bash
+node backfill-identity.js --dry-run   # shows what would change
+node backfill-identity.js
+```
+
+`backfill-identity.js` reports any task whose `owner` name matches nobody in the
+directory — those are exactly the tasks that go missing from someone's portal.
+
+---
+
+## How identity works (read this before changing anything about people)
+
+**Cognito decides who can log in. The `users` table decides what they are.**
+
+| Thing | Lives in | Changed by |
+|---|---|---|
+| Can this person log in? | Cognito user pool | Cognito console / `create-cognito-users.js` |
+| Their display name, team, role, avatar colour | `users` table in RDS | Portal → **Admin · PMO → Team Directory** |
+| Which tasks they see | computed in `backend/routes/tasks.js` from the above | — |
+
+None of this is hardcoded in the frontend any more. A new team member is created
+in Cognito, and appears in the portal on first login as a Content member — move
+them to the right team in Admin → Team Directory.
+
+### Access levels
+
+| Tier | DB `role` | Can see | Can do |
+|---|---|---|---|
+| **Super Admin** | `super_admin` | every task, both teams | everything, plus edit the Team Directory |
+| **Admin** | `manager` | every task on their own team | create, reassign, rename, reschedule, delete, lock/unlock effort |
+| **Employee** | `user` | only tasks assigned to them, **on any team** | log effort, change effort/project status, write updates and comments, request an effort unlock |
+
+Employees are deliberately **not** team-filtered: a task assigned to you is
+yours to see even if the row's `team` column is stale or wrong. Team-gating here
+is what previously hid Creative tasks from their own assignees.
+
+All of this is enforced in `backend/permissions.js` and applied on every write
+route — not just hidden in the UI. Hiding a button is not access control; the
+API is what actually decides.
+
+Review the live access list any time with:
+
+```bash
+cd scripts && node audit-access.js          # readable report + anomaly warnings
+cd scripts && node audit-access.js --csv    # spreadsheet for sign-off
+```
+
+### Passwords
+
+Everyone must set their own password — no shared default stays in place.
+
+- New accounts are created with a **temporary** password, so Cognito puts them
+  in `FORCE_CHANGE_PASSWORD` and the portal shows "Set a new password" on first
+  login. `create-cognito-users.js` must always use `Permanent: false`.
+- To force everyone (including people already using the portal) to change theirs:
+
+```bash
+cd scripts
+node force-password-reset.js --dry-run    # see who would be reset
+node force-password-reset.js              # forces change at next login
+node force-password-reset.js --signout    # ...and ends active sessions now
+```
+
+Tasks are linked to people by `tasks.owner_email` (set from the directory when a
+task is created or reassigned), not by matching the free-text `owner` name. The
+name column is kept in sync for display and CSV export.
 
 ---
 
@@ -111,18 +189,9 @@ FRONTEND_URL=https://portal.gyftr.net
 ### 7. Build & deploy frontend
 
 ```bash
-cd frontend
-npm run build
+cd frontend && npm run build
 aws s3 sync dist/ s3://gyftr-portal-frontend/ --delete
 aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
-```
-
-Local Docker (both services):
-```bash
-cp .env.example .env   # fill values
-docker compose up --build
-# Frontend https://portal.gyftr.net  |  Backend https://backend-portal.gyftr.net
-# (local compose maps to frontend :7867 / backend :7878)
 ```
 
 ---
@@ -138,33 +207,46 @@ pm2 save
 
 ---
 
-## Default login credentials
+## Logging in
 
-All users: `<prefix>@gyftr.net` / `default@123`
+### Either company domain works
 
-| Email | Name | Role |
-|---|---|---|
-| yash.tahlyani@gyftr.net | Yash Tahlyani | Super Admin |
-| anirudh.motwani@gyftr.net | Anirudh Motwani | Super Admin |
-| ceo.office@gyftr.net | Anushka Mishra | Super Admin |
-| deepankar.h@gyftr.net | Deepankar Hemnani | Content Manager |
-| ajay.k@gyftr.net | Ajay Kumar | Creative Manager |
-| deepak.verma@gyftr.net | Deepak Verma | Creative |
-| ashutosh.j@gyftr.net | Ashutosh Kumar | Creative |
-| sunil.d@gyftr.net | Sunil Dhyani | Creative |
-| amit.c@gyftr.net | Amit Chauhan | Creative |
-| shervir@gyftr.net | Shervir | Creative |
-| amit.bhattacharjee@gyftr.net | Amit Bhattacharjee | Creative |
-| ashish.t@gyftr.net | Ashish Kumar Tiwari | Creative |
-| ananya.saril@gyftr.net | Ananya Saril | Content |
-| reet@gyftr.net | Reet Suman | Content |
-| uday.jadoun@gyftr.net | Uday Jadoun | Content |
-| vanshika.atri@gyftr.net | Vanshika Atri | Content |
-| sakshi.s1@gyftr.net | Sakshi Sharma | Content |
-| snigdha.b@gyftr.net | Snigdha Banerjee | Content |
-| priyanshu@gyftr.net | Priyanshu | Content |
-| harshita.m@gyftr.net | Harshita M | Content |
-| saim.k@gyftr.net | Saim | Content |
+Staff are on `@gyftr.net`; some people (and interns as they convert) are on
+`@gyftr.com`. **Both work, and nobody needs migrating.** Identity is the part
+before the `@`, so `sunil.d@gyftr.net` and `sunil.d@gyftr.com` are the same
+person — same team, same access level, same tasks.
+
+Accepted domains are set by `COMPANY_EMAIL_DOMAINS` in the backend env
+(default `gyftr.net,gyftr.com`). Add a domain there rather than in code.
+
+One consequence worth knowing: a person must have **one** account, not two. If
+the same name part appears on both domains you get two directory records with
+two separate sets of tasks. `node audit-access.js` flags this — merge them in
+Admin → Team Directory if it ever happens.
+
+### Passwords
+
+`Default@123` is a **temporary** password only. On first login the portal
+requires a new one, and there is no shared password afterwards. If someone is
+locked out, reset them from the Cognito console (or
+`node force-password-reset.js --only=<email>`) — never set a permanent password.
+
+The authoritative roster is **`scripts/roster.json`** (bootstrap) and the
+`users` table (live). For the current list of people and their access levels,
+run `cd scripts && node audit-access.js` rather than trusting a list in a doc.
+
+A roster entry is `prefix` + the default `emailDomain`, unless it carries an
+explicit `email` field for someone on a different domain.
+
+### If a whole domain ever does need moving
+
+`scripts/migrate-email-domain.js` exists for that (Cognito usernames cannot be
+renamed, so it creates new accounts, disables the old ones, and rewrites the
+database references in one transaction). **It is not needed for normal
+operation** — both domains already work side by side.
+
+> The infrastructure hostnames (`backend-portal.gyftr.net`, `portal.gyftr.net`) are a
+> separate matter from user accounts and are not changed by that script.
 
 ---
 
@@ -172,13 +254,20 @@ All users: `<prefix>@gyftr.net` / `default@123`
 
 | File | What to change |
 |---|---|
-| `frontend/src/constants/index.js` | Add/remove team members, properties, task types |
-| `frontend/src/hooks/useAuth.js` | Add/remove super admin or manager emails |
-| `backend/routes/tasks.js` | Task API logic |
+| `frontend/src/constants/index.js` | Properties, task types, statuses, colours — **not people** |
+| `backend/identity.js` | How a Cognito login maps to a directory user |
+| `backend/permissions.js` | Who can see and change what — the access rules |
+| `backend/routes/tasks.js` | Task API logic + who can see which tasks |
+| `backend/routes/users.js` | Directory API (`/api/users`, `/api/users/me`) |
 | `backend/routes/effort.js` | Effort logging API |
+| `backend/schema.sql` | Tables/columns — applied automatically on backend boot |
 | `backend/db.js` | DB connection (Secrets Manager or direct) |
+| `src/lib/directory.js` | Frontend directory lookups (names, teams, colours) |
+| `scripts/roster.json` | One-time bootstrap roster (Cognito + first DB seed only) |
 | `infra/aws-setup.md` | Full AWS setup instructions |
-| `docker-compose.yml` | Local frontend + backend containers |
+
+> Team members, their teams and their roles are **not** in any of these files.
+> Change them in the portal under **Admin · PMO → Team Directory**.
 
 ---
 

@@ -1,5 +1,6 @@
 /* ─── utils/index.js ─── */
-import { STATUS, TASK_TYPES, TYPE_PALETTE, PEOPLE, TEAM_OF } from "../constants";
+import { TASK_TYPES, TYPE_PALETTE } from "../constants";
+import { teamOfName, colorOfName } from "../lib/directory";
 
 /* ── Date helpers ── */
 export const TODAY = new Date();
@@ -50,7 +51,8 @@ export const fmtHrs = (h) => {
 
 /* ── Task helpers ── */
 export const taskNo   = (t) => parseInt((t.id.split("-")[1])||"0",10);
-export const teamOf   = (t) => TEAM_OF[t.owner] || "Content";
+// Prefer the assignee's directory profile; fall back to the row's own team.
+export const teamOf   = (t) => teamOfName(t.owner) || t.team || "Content";
 export const typeColor = (t) => TYPE_PALETTE[Math.max(0,TASK_TYPES.indexOf(t)) % TYPE_PALETTE.length];
 
 export const agingDays = (t) => {
@@ -67,7 +69,7 @@ export const agingDays = (t) => {
 export const initials = (n="") =>
   n.replace(/\(.*\)/,"").trim().split(" ").map(w=>w[0]).filter(Boolean).slice(0,2).join("").toUpperCase() || "?";
 
-export const avatarColor = (name) => (PEOPLE[name]?.c) || "#7A8A80";
+export const avatarColor = (name) => colorOfName(name);
 
 /* ── CSV export ── */
 const csvCell = (v) => '"' + (v==null?"":String(v)).replace(/"/g,'""') + '"';

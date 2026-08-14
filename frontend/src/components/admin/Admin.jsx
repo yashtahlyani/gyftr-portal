@@ -1,11 +1,13 @@
 /* ─── components/admin/Admin.jsx ─── */
-import React, { useState, useMemo, useEffect } from "react";
-import { Search, AlertTriangle, Clock, X, FileText, Plus, RefreshCw } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Search, AlertTriangle, Clock, X, FileText, Plus } from "lucide-react";
 import { Avatar, StatusChip, Caret } from "../ui";
-import { PROPERTIES, CREATIVE_PROPERTIES, PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
-import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
+import { PROJECT_STATUS_LIST, RANGE_OPTS } from "../../constants";
+import { useProperties } from "../../lib/PropertiesProvider";
+import { apiFetch } from "../../lib/api";
 import { STATUS } from "../../constants";
 import { agingDays, fmtHrs, fmtDate, taskNo, totalEffort, plusDays, TODAY_ISO, dayDiff } from "../../utils";
+import { TeamDirectory } from "./TeamDirectory";
 
 /* ── Status proportion bar ── */
 function StatusBar({ items }) {
@@ -18,11 +20,10 @@ function StatusBar({ items }) {
   );
 }
 
-export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
-  const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES : PROPERTIES;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR : PROP_COLOR;
-  const storageKey   = isCreative ? "gyftr_creative_custom_props" : "gyftr_custom_props";
+export function Admin({ tasks, openDrawer, userTeam = "Content", role = "user" }) {
+  const { listFor, colorMapFor, recordsFor, reload: reloadProps } = useProperties();
+  const propList     = listFor(userTeam);
+  const propColorMap = colorMapFor(userTeam);
   const [mode,    setMode]    = useState("person");
   const [sel,     setSel]     = useState(null);
   const [selProp, setSelProp] = useState(null);
@@ -31,41 +32,51 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
   const [customFrom, setCustomFrom] = useState("");
   const [customTo,   setCustomTo]   = useState("");
 
-  // Property management (custom additions stored in localStorage)
+  /* ── Property management — shared, stored in RDS via /api/properties ──
+     This used to write to the manager's own browser localStorage, so a
+     property one person added was invisible to everyone else. */
   const [newPropInput, setNewPropInput] = useState("");
-  const [customProps,  setCustomProps]  = useState(() => {
-    try { return JSON.parse(localStorage.getItem(storageKey) || "[]"); }
-    catch { return []; }
-  });
-  // Combine static propList with custom additions so the scoreboard updates immediately
-  const effectivePropList = useMemo(
-    () => [...propList, ...customProps.filter(p => !propList.includes(p))],
-    [propList, customProps]
-  );
-  // Re-sync customProps when team changes (storageKey changes after auth resolves)
-  useEffect(() => {
-    try { setCustomProps(JSON.parse(localStorage.getItem(storageKey) || "[]")); }
-    catch { setCustomProps([]); }
-  }, [storageKey]);
   const [propMgmtOpen, setPropMgmtOpen] = useState(false);
+  const [propBusy,     setPropBusy]     = useState(false);
+  const [propError,    setPropError]    = useState(null);
+  const effectivePropList = propList;
 
-  const addCustomProp = () => {
+  const addProperty = async () => {
     const name = newPropInput.trim();
-    if (!name) return;
-    if (effectivePropList.includes(name)) {
-      alert(`"${name}" already exists in the property list.`);
-      return;
+    if (!name || propBusy) return;
+    setPropBusy(true); setPropError(null);
+    try {
+      await apiFetch("/api/properties", {
+        method: "POST",
+        body: JSON.stringify({ name, team: userTeam }),
+      });
+      await reloadProps();
+      setNewPropInput("");
+    } catch (err) {
+      setPropError(err.message);
+    } finally {
+      setPropBusy(false);
     }
-    const updated = [...customProps, name];
-    localStorage.setItem(storageKey, JSON.stringify(updated));
-    setCustomProps(updated);
-    setNewPropInput("");
   };
 
-  const removeCustomProp = (p) => {
-    const updated = customProps.filter(x => x !== p);
-    localStorage.setItem(storageKey, JSON.stringify(updated));
-    setCustomProps(updated);
+  const removeProperty = async (name) => {
+    const rec = recordsFor(userTeam).find(p => p.name === name);
+    if (!rec || propBusy) return;
+    const used = tasks.filter(t => t.property === name).length;
+    if (!confirm(
+      used > 0
+        ? `${used} task(s) still use "${name}". Removing it hides it from the dropdowns; existing tasks keep it. Continue?`
+        : `Remove "${name}" from the ${userTeam} property list?`
+    )) return;
+    setPropBusy(true); setPropError(null);
+    try {
+      await apiFetch(`/api/properties/${rec.id}`, { method: "DELETE" });
+      await reloadProps();
+    } catch (err) {
+      setPropError(err.message);
+    } finally {
+      setPropBusy(false);
+    }
   };
 
   const YESTERDAY = plusDays(TODAY_ISO, -1);
@@ -339,6 +350,9 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
         </div>
       )}
 
+      {/* ── TEAM DIRECTORY ── */}
+      <TeamDirectory canEdit={role === "super_admin"}/>
+
       {/* ── PROPERTY MANAGEMENT ── */}
       <div className="gx-card" style={{ marginBottom:16, overflow:"hidden" }}>
         <div
@@ -346,46 +360,50 @@ export function Admin({ tasks, openDrawer, userTeam = "Content" }) {
           onClick={() => setPropMgmtOpen(o => !o)}
         >
           <b className="gx-disp" style={{ fontSize:14 }}>Manage Properties</b>
-          <span style={{ fontSize:11.5, color:"var(--ink-soft)" }}>{propList.length} in list · {customProps.length} custom</span>
+          <span style={{ fontSize:11.5, color:"var(--ink-soft)" }}>{propList.length} in the {userTeam} list · shared with everyone</span>
           <span style={{ marginLeft:"auto", fontSize:12, color:"var(--pop)", fontWeight:700 }}>{propMgmtOpen ? "▲ Close" : "▼ Open"}</span>
         </div>
         {propMgmtOpen && (
           <div style={{ padding:"14px 16px" }}>
             <div style={{ fontSize:12, color:"var(--ink-soft)", marginBottom:12 }}>
-              Add custom properties here. They merge with the built-in list and appear immediately in all dropdowns after you refresh the page.
+              Properties are saved to the database and apply for the whole {userTeam} team straight away — no page reload, and no longer only on your own machine.
             </div>
 
-            {/* Custom prop chips */}
-            {customProps.length > 0 && (
-              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
-                {customProps.map(p => (
-                  <span key={p} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#EAF7F9", border:"1px solid #BEE6EC", padding:"4px 10px", borderRadius:8, fontSize:12.5, fontWeight:600, color:"#067A8C" }}>
-                    {p}
-                    <X size={12} style={{ cursor:"pointer", color:"#94a59b", flexShrink:0 }} onClick={() => removeCustomProp(p)}/>
-                  </span>
-                ))}
+            {propError && (
+              <div style={{ fontSize:12, fontWeight:600, color:"#B01457", background:"#FBE0EC", padding:"7px 10px", borderRadius:8, marginBottom:10 }}>
+                {propError}
               </div>
             )}
+
+            {/* Current list — removing hides it from dropdowns, existing tasks keep the value */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:12 }}>
+              {propList.map(p => (
+                <span key={p} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#F4F8F4", border:"1px solid var(--line)", padding:"4px 10px", borderRadius:8, fontSize:12.5, fontWeight:600, color:propColorMap[p] || "var(--ink-soft)" }}>
+                  {p}
+                  <X size={12} style={{ cursor:propBusy?"default":"pointer", color:"#94a59b", flexShrink:0, opacity:propBusy?.4:1 }}
+                     onClick={() => removeProperty(p)}/>
+                </span>
+              ))}
+              {propList.length === 0 && (
+                <span style={{ fontSize:12, color:"var(--ink-soft)" }}>No properties yet — add the first one below.</span>
+              )}
+            </div>
 
             {/* Add input */}
             <div style={{ display:"flex", gap:8, alignItems:"center" }}>
               <input
                 className="gx-input"
-                placeholder="New property name…"
+                placeholder={`New ${userTeam} property name…`}
                 value={newPropInput}
+                disabled={propBusy}
                 onChange={e => setNewPropInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addCustomProp()}
+                onKeyDown={e => e.key === "Enter" && addProperty()}
                 style={{ flex:1 }}
               />
-              <button className="gx-btn gx-btn-dark" onClick={addCustomProp} style={{ flexShrink:0 }}>
-                <Plus size={14}/> Add
+              <button className="gx-btn gx-btn-dark" onClick={addProperty} disabled={propBusy}
+                style={{ flexShrink:0, opacity:propBusy?.6:1 }}>
+                <Plus size={14}/> {propBusy ? "Saving…" : "Add"}
               </button>
-              <button className="gx-btn gx-btn-ghost" onClick={() => window.location.reload()} title="Reload page to apply property list changes everywhere" style={{ flexShrink:0, border:"1px solid var(--line)" }}>
-                <RefreshCw size={14}/> Apply
-              </button>
-            </div>
-            <div style={{ fontSize:11, color:"var(--ink-soft)", marginTop:6 }}>
-              Click <b>Apply</b> (page reload) after adding/removing to update the Board and Dashboard dropdowns.
             </div>
           </div>
         )}

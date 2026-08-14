@@ -3,7 +3,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import { LayoutDashboard, Table2, Settings, Plus, LogOut } from "lucide-react";
 
 import { STYLES }          from "./lib/styles";
-import { TEAM_OF, USER_BY_EMAIL } from "./constants";
+import { DirectoryProvider } from "./lib/DirectoryProvider";
+import { PropertiesProvider } from "./lib/PropertiesProvider";
 
 import { useAuth }         from "./hooks/useAuth";
 import { useTaskStore }    from "./hooks/useTaskStore";
@@ -24,7 +25,8 @@ const NAV = [
 ];
 
 export default function App() {
-  const { authed, setAuthed, currentUser, setCurrentUser, displayName, setDisplayName, role, setRole, userTeam, login, logout } = useAuth();
+  const { authed, setAuthed, currentUser, displayName, role, userTeam, profileError,
+          login, logout, completeNewPassword, cancelPasswordChange, mustChangePassword } = useAuth();
   const [view,       setView]       = useState("board");
   const [openId,     setOpenId]     = useState(null);
   const [openTab,    setOpenTab]    = useState("Update");
@@ -49,22 +51,18 @@ export default function App() {
   // Determine which tasks are visible based on role + team
   const activeTeam = isSuperAdmin ? teamView : userTeam;
 
+  // The backend already scopes /api/tasks to what this user may see
+  // (backend/routes/tasks.js → visibilityFilter). The only filtering left here
+  // is the super-admin team switcher.
+  //
+  // Regular members are deliberately NOT team-filtered: a task assigned to you
+  // is yours to see even if the row's `team` is stale or wrong. Team-gating
+  // here is what hid Creative tasks from their own assignees.
   const visibleTasks = useMemo(() => {
-    // Filter to the active team first (super admin can also pick "All")
-    const teamFiltered = (isSuperAdmin && teamView === "All")
-      ? tasks
-      : tasks.filter(t => (t.team || "Content") === activeTeam);
-
-    // Managers and super-admins see all tasks in scope
-    if (isManager) return teamFiltered;
-
-    // Regular members see only tasks assigned to them
-    const nameFromEmail = USER_BY_EMAIL[currentUser?.toLowerCase()] || "";
-    return teamFiltered.filter(t => {
-      const owner = t.owner?.toLowerCase() || "";
-      return owner === displayName?.toLowerCase() || owner === nameFromEmail.toLowerCase();
-    });
-  }, [isSuperAdmin, isManager, tasks, displayName, currentUser, userTeam, teamView, activeTeam]);
+    if (!isManager) return tasks;
+    if (isSuperAdmin && teamView === "All") return tasks;
+    return tasks.filter(t => (t.team || "Content") === activeTeam);
+  }, [isSuperAdmin, isManager, tasks, teamView, activeTeam]);
 
   useEffect(() => { if (!isManager && view === "admin") setView("dashboard"); }, [isManager, view]);
 
@@ -72,7 +70,8 @@ export default function App() {
   const openDrawer = (id, tab = "Update") => { setOpenId(id); setOpenTab(tab); };
 
   const handleAddTask = (f) => {
-    // Stamp the task with the correct team before saving
+    // Team hint only — the backend re-derives it from the assignee's profile
+    // so a task can never land on a team its assignee cannot see.
     const taskWithTeam = { ...f, team: isSuperAdmin ? teamView === "All" ? "Content" : teamView : userTeam };
     addTask(taskWithTeam, {
       onSuccess: (id) => { setCreateOpen(false); setView("board"); setOpenId(id); setOpenTab("Update"); },
@@ -81,7 +80,15 @@ export default function App() {
   };
 
   if (!authed) {
-    return <Login login={login} onIn={(name) => { setAuthed(true); if (name) setCurrentUser(name); }}/>;
+    return (
+      <Login
+        login={login}
+        onIn={() => setAuthed(true)}
+        mustChangePassword={mustChangePassword}
+        completeNewPassword={completeNewPassword}
+        cancelPasswordChange={cancelPasswordChange}
+      />
+    );
   }
 
   if (loading) {
@@ -95,11 +102,19 @@ export default function App() {
     );
   }
 
-  const teamLabel = TEAM_OF[displayName] || (isSuperAdmin ? "Admin" : userTeam);
+  const teamLabel = isSuperAdmin ? "Admin" : userTeam;
 
   return (
+    <DirectoryProvider authed={authed}>
+    <PropertiesProvider authed={authed}>
     <div className="gx-root" style={{ height:"100vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
       <style>{STYLES}</style>
+
+      {profileError && (
+        <div style={{ flex:"none", padding:"7px 24px", background:"#FBE0EC", color:"#B01457", fontSize:12.5, fontWeight:600 }}>
+          Could not load your profile from the server ({profileError}) — showing limited access. Reload or contact admin.
+        </div>
+      )}
 
       {/* Header */}
       <header style={{ flex:"none", height:58, borderBottom:"1px solid var(--line)", background:"var(--surface)", display:"flex", alignItems:"center", gap:18, padding:"0 24px" }}>
@@ -141,7 +156,7 @@ export default function App() {
           <div style={{ minWidth:0 }}>
             <div style={{ fontSize:13, fontWeight:600, lineHeight:1.1 }}>{displayName}</div>
             <div style={{ fontSize:10.5, color:"var(--ink-soft)" }}>
-              {teamLabel} · {isSuperAdmin ? "Super Admin" : isManager ? "Manager" : "Member"}
+              {teamLabel} · {isSuperAdmin ? "Super Admin" : isManager ? "Admin" : "Employee"}
             </div>
           </div>
           <LogOut size={16} style={{ color:"#94a59b", cursor:"pointer", marginLeft:2 }} onClick={logout}/>
@@ -157,7 +172,7 @@ export default function App() {
           <Board tasks={visibleTasks} patch={patch} addEffort={addEffort} stopTimerAndLog={stopTimerAndLog} openDrawer={openDrawer} role={role} onRefresh={fetchTasks} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
         )}
         {view==="admin" && isManager && (
-          <Admin tasks={visibleTasks} openDrawer={openDrawer} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
+          <Admin tasks={visibleTasks} openDrawer={openDrawer} role={role} userTeam={activeTeam === "All" ? "Content" : activeTeam}/>
         )}
       </main>
 
@@ -188,5 +203,7 @@ export default function App() {
         />
       )}
     </div>
+    </PropertiesProvider>
+    </DirectoryProvider>
   );
 }

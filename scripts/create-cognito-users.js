@@ -1,7 +1,7 @@
 /**
  * create-cognito-users.js — seed all GyFTR team members into Cognito
  *
- * Creates every known user with a permanent password of default@123.
+ * Creates every known user with a temporary password of Default@123.
  * Users do NOT need to reset password on first login.
  *
  * Usage:
@@ -22,42 +22,20 @@ import {
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const USER_POOL_ID     = process.env.COGNITO_USER_POOL_ID;
 const REGION           = process.env.AWS_REGION || 'ap-south-1';
-// Must include uppercase — Cognito pool policy requires it
 const DEFAULT_PASSWORD = 'Default@123';
-const EMAIL_DOMAIN     = '@gyftr.net';
 
-// All team members — prefix + display name
-const USERS = [
-  // Super admins
-  { prefix: 'yash.tahlyani',        name: 'Yash Tahlyani' },
-  { prefix: 'anirudh.motwani',      name: 'Anirudh Motwani' },
-  { prefix: 'ceo.office',           name: 'Anushka Mishra' },
-  // Content team
-  { prefix: 'deepankar.h',          name: 'Deepankar Hemnani' },
-  { prefix: 'ananya.saril',         name: 'Ananya Saril' },
-  { prefix: 'reet',                 name: 'Reet Suman' },
-  { prefix: 'uday.jadoun',          name: 'Uday Jadoun' },
-  { prefix: 'vanshika.atri',        name: 'Vanshika Atri' },
-  { prefix: 'sakshi.s1',            name: 'Sakshi Sharma' },
-  { prefix: 'snigdha.b',            name: 'Snigdha Banerjee' },
-  { prefix: 'priyanshu',            name: 'Priyanshu' },
-  { prefix: 'harshita.m',           name: 'Harshita M' },
-  { prefix: 'saim.k',               name: 'Saim' },
-  // Creative team
-  { prefix: 'ajay.k',               name: 'Ajay Kumar' },
-  { prefix: 'ashutosh.j',           name: 'Ashutosh Kumar' },
-  { prefix: 'sunil.d',              name: 'Sunil Dhyani' },
-  { prefix: 'amit.c',               name: 'Amit Chauhan' },
-  { prefix: 'shervir',              name: 'Shervir' },
-  { prefix: 'deepak.verma',         name: 'Deepak Verma' },
-  { prefix: 'amit.bhattacharjee',   name: 'Amit Bhattacharjee' },
-  { prefix: 'ashish.t',             name: 'Ashish Kumar Tiwari' },
-];
+// The roster lives in exactly one place — roster.json — shared with
+// sync-users.js. Do not re-list people here.
+const roster       = JSON.parse(readFileSync(fileURLToPath(new URL('./roster.json', import.meta.url)), 'utf8'));
+const EMAIL_DOMAIN = roster.emailDomain;
+const USERS        = roster.users;
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -70,12 +48,14 @@ async function main() {
   const client = new CognitoIdentityProviderClient({ region: REGION });
 
   console.log(`=== Creating ${USERS.length} Cognito users in pool ${USER_POOL_ID} ===`);
-  console.log(`Default password: ${DEFAULT_PASSWORD}\n`);
+  console.log(`Temporary password: ${DEFAULT_PASSWORD} (users must change it on first login)\n`);
 
   let created = 0, skipped = 0, failed = 0;
 
   for (const u of USERS) {
-    const email = u.prefix + EMAIL_DOMAIN;
+    // A roster entry may carry an explicit "email" (someone on a different
+    // company domain); otherwise it is prefix + the default domain.
+    const email = (u.email || u.prefix + EMAIL_DOMAIN).toLowerCase();
     process.stdout.write(`  ${email.padEnd(42)}`);
 
     try {
@@ -91,32 +71,22 @@ async function main() {
         ],
       }));
 
-      // Set permanent password — user won't be forced to change it
+      // TEMPORARY password (Permanent: false) — Cognito puts the account in
+      // FORCE_CHANGE_PASSWORD, so the portal makes them choose their own
+      // password on first login. Never set Permanent: true here.
       await client.send(new AdminSetUserPasswordCommand({
         UserPoolId: USER_POOL_ID,
         Username:   email,
         Password:   DEFAULT_PASSWORD,
-        Permanent:  true,
+        Permanent:  false,
       }));
 
       console.log('created');
       created++;
     } catch (err) {
       if (err.name === 'UsernameExistsException') {
-        // User may exist from a previous failed password set — force permanent password
-        try {
-          await client.send(new AdminSetUserPasswordCommand({
-            UserPoolId: USER_POOL_ID,
-            Username:   email,
-            Password:   DEFAULT_PASSWORD,
-            Permanent:  true,
-          }));
-          console.log('already exists — password reset');
-          skipped++;
-        } catch (pwErr) {
-          console.log(`already exists — password FAILED — ${pwErr.message}`);
-          failed++;
-        }
+        console.log('already exists (skipped)');
+        skipped++;
       } else {
         console.log(`FAILED — ${err.message}`);
         failed++;
