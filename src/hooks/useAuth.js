@@ -87,12 +87,24 @@ export function useAuth() {
           loadProfile(session.getIdToken()).then(() => resolve({ mustChangePassword: false }), reject);
         },
         onFailure(err) { reject(err); },
-        newPasswordRequired(userAttributes) {
-          // Cognito rejects these back on the challenge — they are not writable here.
-          delete userAttributes.email_verified;
-          delete userAttributes.email_address;
-          delete userAttributes.phone_number_verified;
-          setPendingChallenge({ cognitoUser, userAttributes });
+        newPasswordRequired(userAttributes, requiredAttributes) {
+          // Send back ONLY attributes Cognito says are still required, and never
+          // a standard attribute that is already set. `userAttributes` is the
+          // account's current values, not a to-do list — echoing `email` back
+          // makes Cognito fail the challenge with "Cannot modify an already
+          // provided email", which blocked every first login.
+          const NEVER_SEND = new Set([
+            'email', 'email_verified',
+            'phone_number', 'phone_number_verified',
+            'sub',
+          ]);
+          const payload = {};
+          for (const name of requiredAttributes || []) {
+            if (!NEVER_SEND.has(name) && userAttributes?.[name] !== undefined) {
+              payload[name] = userAttributes[name];
+            }
+          }
+          setPendingChallenge({ cognitoUser, userAttributes: payload });
           resolve({ mustChangePassword: true });
         },
       });
