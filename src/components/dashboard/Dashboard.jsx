@@ -6,7 +6,8 @@ import {
 } from "recharts";
 import { Plus, ChevronDown, Clock, CalendarDays } from "lucide-react";
 import { Avatar, StatusChip } from "../ui";
-import { PROPERTIES, CREATIVE_PROPERTIES, STATUS_LIST, TASK_TYPES, CREATIVE_TASK_TYPES, PROJECT_STATUS_LIST, STATUS, PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
+import { STATUS_LIST, TASK_TYPES, CREATIVE_TASK_TYPES, PROJECT_STATUS_LIST, STATUS } from "../../constants";
+import { useProperties } from "../../lib/PropertiesProvider";
 import { typeColor, fmtDate, fmtHrs, agingDays, taskNo, TODAY_ISO } from "../../utils";
 import { apiFetch } from "../../lib/api";
 
@@ -24,12 +25,13 @@ const fmtH = (h) => {
 // Tasks with no type AND no property go into this catch-all bucket
 const UNTYPED       = "General";
 const UNTYPED_COLOR = "#94a59b";
-// Color priority: PROP_COLOR first (property-bucketed entries), then TYPE_PALETTE, then grey
-const tColor = (b, colorMap = PROP_COLOR) => b === UNTYPED ? UNTYPED_COLOR : (colorMap[b] || typeColor(b));
+// Colour priority: the property colour map first (property-bucketed entries),
+// then TYPE_PALETTE, then grey
+const tColor = (b, colorMap = {}) => b === UNTYPED ? UNTYPED_COLOR : (colorMap[b] || typeColor(b));
 const tArr   = (t) => Array.isArray(t.type) ? t.type.filter(Boolean) : t.type ? [t.type] : [];
 
 /* ── Type / property legend ── */
-function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types", colorMap = PROP_COLOR }) {
+function TypeLegend({ types, sel, onToggle, onAll, header = "Task Types", colorMap = {} }) {
   return (
     <div style={{ flex:"0 0 180px", borderLeft:"1px solid var(--line)", paddingLeft:14 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
@@ -77,12 +79,20 @@ function HourTooltip({ active, payload, label }) {
 
 export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "Content" }) {
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES  : PROPERTIES;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR  : PROP_COLOR;
+  const { listFor, colorMapFor } = useProperties();
+  const propList     = listFor(userTeam);
+  const propColorMap = colorMapFor(userTeam);
   const taskTypes    = isCreative ? CREATIVE_TASK_TYPES  : TASK_TYPES;
 
   const [drill,          setDrill]          = useState(null);
-  const [selProps,       setSelProps]       = useState(() => propList.slice());
+  // Properties load from the API, so the "all selected" default is applied
+  // once the list arrives rather than at first render.
+  const [selProps,       setSelProps]       = useState([]);
+  const propSig = propList.join("|");
+  useEffect(() => {
+    setSelProps(prev => prev.length ? prev : propList.slice());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propSig]);
   const [selTypes,       setSelTypes]       = useState(() => taskTypes.slice());
   const [chartTypes,     setChartTypes]     = useState(() => [...taskTypes, UNTYPED]);
   const [propMenuOpen,   setPropMenuOpen]   = useState(false);
@@ -100,8 +110,10 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
     return () => clearInterval(id);
   }, []);
 
-  // Direct effort_entries query — bypasses the task join so RLS or row-limit issues don't hide data
-  const [rawEntries, setRawEntries] = useState([]);
+  // Effort entries straight from the API. This is the single source of truth:
+  // the backend already scopes it to what this user may see.
+  // (null = not loaded yet, so we can fall back to the task join meanwhile)
+  const [rawEntries, setRawEntries] = useState(null);
   const fetchRef = useRef(0);
 
   const tasksSig = tasks.map(t => t.updatedTs).join(",");
@@ -126,7 +138,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
   // Index raw entries by task_id for O(1) lookup
   const entriesByTask = useMemo(() => {
     const map = {};
-    rawEntries.forEach(e => {
+    (rawEntries || []).forEach(e => {
       if (!map[e.task_id]) map[e.task_id] = [];
       map[e.task_id].push(e);
     });
@@ -140,35 +152,13 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
 
   const inRange = (d) => !d ? false : (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
 
-  // Read from localStorage cache — available even when Supabase SELECT is blocked
-  const cachedEntries = useMemo(() => {
-    try {
-      const all = JSON.parse(localStorage.getItem("gyftr_effort_log") || "[]");
-      return hasDate
-        ? all.filter(e => inRange((e.date || "").slice(0, 10)))
-        : all;
-    } catch(_) { return []; }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, tasksSig]);
-
-  const cachedByTask = useMemo(() => {
-    const map = {};
-    cachedEntries.forEach(e => {
-      if (!map[e.task_id]) map[e.task_id] = [];
-      map[e.task_id].push(e);
-    });
-    return map;
-  }, [cachedEntries]);
-
-  // Merge all three sources: direct DB query, localStorage cache, and task-join data.
-  // Take whichever has the most entries — covers RLS blocks, optimistic updates, and cross-device sync.
+  // One source of truth: the effort API once it has loaded, and the task join
+  // only until then. The old code merged in a browser-local cache and took
+  // whichever source had the MOST rows — which double-counted deleted entries
+  // and made the same dashboard read differently on different devices.
   const committedEntries = (t) => {
-    const direct = entriesByTask[t.id] || [];
-    const cached = cachedByTask[t.id] || [];
-    const joined = (t.effort || []).filter(e =>
-      hasDate ? inRange((e.date || "").slice(0, 10)) : true
-    );
-    return [direct, cached, joined].reduce((best, src) => src.length > best.length ? src : best, []);
+    if (rawEntries) return entriesByTask[t.id] || [];
+    return (t.effort || []).filter(e => hasDate ? inRange((e.date || "").slice(0, 10)) : true);
   };
 
   // Hours from committed entries
@@ -204,17 +194,14 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
   const kpiTasks = useMemo(() => {
     if (!hasDate) return filtered;
     return filtered.filter(t => {
-      const direct = entriesByTask[t.id] || [];
-      const cached = cachedByTask[t.id] || [];
-      const joined = (t.effort || []).filter(e => inRange((e.date || "").slice(0, 10)));
       return (
-        direct.length > 0 || cached.length > 0 || joined.length > 0 ||
+        committedEntries(t).length > 0 ||
         t.running ||
         inRange(t.due) || inRange(t.expected) || inRange(t.requested)
       );
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtered, hasDate, dateFrom, dateTo, entriesByTask, cachedByTask]);
+  }, [filtered, hasDate, dateFrom, dateTo, entriesByTask, rawEntries]);
 
   /* ── Task lookup for chart attribution (needed before grandTotal) ── */
   const taskLookup = useMemo(() => {
@@ -233,30 +220,23 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
     return t.property || UNTYPED;
   };
 
-  // Union all three effort sources so no path can hide data:
-  // 1. rawEntries — direct date-filtered DB query (may be blocked by RLS for some roles)
-  // 2. cachedEntries — localStorage writes (survives RLS SELECT blocks)
-  // 3. joined t.effort — entries from task join (different RLS code path than direct query)
-  // Deduplicate by task_id+date+hours so a stopped timer doesn't count twice.
+  // Effort rows for the charts, restricted to the tasks currently in view.
+  // Uses the effort API once loaded, and the task join only until then —
+  // never both, so a stopped timer cannot be counted twice.
   const effortSource = useMemo(() => {
-    const seen = new Set();
-    const result = [];
-    const add = (task_id, date, hours, status) => {
-      const k = `${task_id}|${date}|${hours}`;
-      if (seen.has(k)) return;
-      seen.add(k);
-      result.push({ task_id, date, hours, status });
-    };
-    rawEntries.forEach(e => add(e.task_id, e.date, e.hours, e.status));
-    cachedEntries.forEach(e => add(e.task_id, e.date, e.hours, e.status));
-    filtered.forEach(t =>
+    const visible = new Set(filtered.map(t => t.id));
+    if (rawEntries) {
+      return rawEntries
+        .filter(e => visible.has(e.task_id))
+        .map(e => ({ task_id: e.task_id, date: e.date, hours: e.hours, status: e.status }));
+    }
+    return filtered.flatMap(t =>
       (t.effort || [])
         .filter(e => !hasDate || inRange((e.date || "").slice(0, 10)))
-        .forEach(e => add(t.id, e.date, e.hours, e.status))
+        .map(e => ({ task_id: t.id, date: e.date, hours: e.hours, status: e.status }))
     );
-    return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawEntries, cachedEntries, filtered, hasDate, dateFrom, dateTo]);
+  }, [rawEntries, filtered, hasDate, dateFrom, dateTo]);
 
   /* ── KPI data ── */
   const isActive  = (t) => STATUS[t.projectStatus]?.group === "active";
@@ -404,7 +384,7 @@ export function Dashboard({ tasks, onCreate, openDrawer, canCreate, userTeam = "
           <h1 className="gx-disp" style={{ fontSize:26, fontWeight:700, margin:0 }}>Dashboard &amp; Reporting</h1>
           <p style={{ color:"var(--ink-soft)", fontSize:13, margin:"4px 0 0" }}>
             Showing effort for: <b style={{ color:"var(--pop-deep)" }}>{dateLabel}</b>
-            {rawEntries.length > 0 && (
+            {rawEntries?.length > 0 && (
               <span style={{ marginLeft:10, fontSize:12, color:"var(--pop-deep)", fontWeight:600 }}>
                 · {rawEntries.length} effort {rawEntries.length === 1 ? "entry" : "entries"} found
               </span>

@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "ONE-TIME BOOTSTRAP DATA — not runtime configuration.",
+    "Used by create-cognito-users.js (to create the Cognito accounts) and by",
+    "sync-users.js (to seed the `users` table the first time each person is seen).",
+    "After the initial sync, roles and teams live in the database and are edited",
+    "in the portal under Admin -> Team Directory. Editing this file afterwards",
+    "does NOT change anyone: sync-users.js never overwrites an existing row.",
+    "",
+    "team: Content | Creative | Admin      role: super_admin | manager | user",
+    "",
+    "emailDomain is the DEFAULT domain for these accounts. A person on a",
+    "different domain gets an explicit \"email\" field instead of a \"prefix\".",
+    "Either way it is one login per person: the portal treats name@gyftr.net",
+    "and name@gyftr.com as the same user, so nobody needs migrating."
+  ],
+  "emailDomain": "@gyftr.net",
+  "users": [
+    { "prefix": "yash.tahlyani",      "name": "Yash Tahlyani",       "role": "super_admin", "team": "Admin",    "color": null,      "isBusinessOwner": false },
+    { "prefix": "anirudh.motwani",    "name": "Anirudh Motwani",     "role": "super_admin", "team": "Admin",    "color": "#6D4C99", "isBusinessOwner": true  },
+    { "prefix": "ceo.office",         "name": "Anushka Mishra",      "role": "super_admin", "team": "Admin",    "color": null,      "isBusinessOwner": false },
+
+    { "prefix": "deepankar.h",        "name": "Deepankar Hemnani",   "role": "manager",     "team": "Content",  "color": "#1F7A3D", "isBusinessOwner": true  },
+    { "prefix": "sakshi.s1",          "name": "Sakshi Sharma",       "role": "user",        "team": "Content",  "color": "#C2185B", "isBusinessOwner": false },
+    { "prefix": "snigdha.b",          "name": "Snigdha Banerjee",    "role": "user",        "team": "Content",  "color": "#0E6FA3", "isBusinessOwner": false },
+    { "prefix": "vanshika.atri",      "name": "Vanshika Atri",       "role": "user",        "team": "Content",  "color": "#8B5CF6", "isBusinessOwner": false },
+    { "prefix": "reet",               "name": "Reet Suman",          "role": "user",        "team": "Content",  "color": "#0891B2", "isBusinessOwner": false },
+    { "prefix": "uday.jadoun",        "name": "Uday Jadoun",         "role": "user",        "team": "Content",  "color": "#15803D", "isBusinessOwner": false },
+    { "prefix": "ananya.saril",       "name": "Ananya Saril",        "role": "user",        "team": "Content",  "color": "#B01457", "isBusinessOwner": false },
+    { "prefix": "saim.k",             "name": "Saim",                "role": "user",        "team": "Content",  "color": "#0369A1", "isBusinessOwner": false },
+    { "prefix": "priyanshu",          "name": "Priyanshu",           "role": "user",        "team": "Content",  "color": null,      "isBusinessOwner": false },
+    { "prefix": "harshita.m",         "name": "Harshita M",          "role": "user",        "team": "Content",  "color": null,      "isBusinessOwner": false },
+
+    { "prefix": "ajay.k",             "name": "Ajay Kumar",          "role": "manager",     "team": "Creative", "color": "#0B6FCB", "isBusinessOwner": true  },
+    { "prefix": "ashutosh.j",         "name": "Ashutosh Kumar",      "role": "user",        "team": "Creative", "color": "#C84B31", "isBusinessOwner": false },
+    { "prefix": "sunil.d",            "name": "Sunil Dhyani",        "role": "user",        "team": "Creative", "color": "#2D6A4F", "isBusinessOwner": false },
+    { "prefix": "amit.c",             "name": "Amit Chauhan",        "role": "user",        "team": "Creative", "color": "#7B2D8B", "isBusinessOwner": false },
+    { "prefix": "shervir",            "name": "Shervir",             "role": "user",        "team": "Creative", "color": "#B5451B", "isBusinessOwner": false },
+    { "prefix": "deepak.verma",       "name": "Deepak Verma",        "role": "user",        "team": "Creative", "color": "#1A6B72", "isBusinessOwner": false },
+    { "prefix": "amit.bhattacharjee", "name": "Amit Bhattacharjee",  "role": "user",        "team": "Creative", "color": "#6B3A1F", "isBusinessOwner": false },
+    { "prefix": "ashish.t",           "name": "Ashish Kumar Tiwari", "role": "user",        "team": "Creative", "color": "#1B4F72", "isBusinessOwner": false }
+  ]
+}

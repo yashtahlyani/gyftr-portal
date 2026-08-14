@@ -1,11 +1,11 @@
 # AWS Setup Guide — GyFTR Portal
 
-Full migration from Vercel + Supabase to AWS.  
+AWS setup for the GyFTR Marketing Portal. The stack is AWS-only: RDS Postgres, Cognito, EC2 + ALB, S3 + CloudFront, Secrets Manager.  
 **Region**: ap-south-1 (Mumbai) throughout.
 
 ---
 
-## 1. RDS Postgres (replaces Supabase DB)
+## 1. RDS Postgres
 
 1. Go to **RDS → Create database**.
 2. Engine: **PostgreSQL 16**, template: **Free tier** (or Production for live).
@@ -14,7 +14,7 @@ Full migration from Vercel + Supabase to AWS.
 5. VPC: default, **Public access: No** (EC2 will connect via private subnet).
 6. Create a **security group** `gyftr-rds-sg` — inbound: PostgreSQL 5432 from `gyftr-ec2-sg` only.
 7. After creation, note the **Endpoint** (e.g. `gyftr-portal.xxxx.ap-south-1.rds.amazonaws.com`).
-8. Connect via EC2 bastion or psql tunnel and run the existing Supabase schema DDL (see §8).
+8. Connect via EC2 bastion or psql tunnel and create the core tables (see §8).
 
 ---
 
@@ -33,7 +33,7 @@ Full migration from Vercel + Supabase to AWS.
 
 ---
 
-## 3. AWS Cognito (replaces Supabase Auth)
+## 3. AWS Cognito
 
 1. Go to **Cognito → Create user pool**.
 2. Sign-in options: **Email**.
@@ -47,7 +47,7 @@ Full migration from Vercel + Supabase to AWS.
    VITE_COGNITO_USER_POOL_ID=ap-south-1_AbcXYZ
    VITE_COGNITO_CLIENT_ID=...
    ```
-9. **Migrate users**: for each existing Supabase user, go to **Users → Create user** in the Cognito console and set their `@gyftr.net` email + temporary password. They'll reset on first login.
+9. **Create users**: run `scripts/create-cognito-users.js` (reads `scripts/roster.json`). It sets a TEMPORARY password, so everyone is forced to choose their own on first login. Then run `scripts/sync-users.js` to populate the `users` directory table.
 
 ---
 
@@ -138,28 +138,31 @@ aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
 
 ---
 
-## 8. Database schema migration from Supabase
+## 8. Database schema
 
-Export schema from Supabase:
-```bash
-# In Supabase dashboard → Settings → Database → Connection string
-pg_dump "postgres://postgres:<pass>@<host>:5432/postgres" \
-  --schema-only --no-owner -f schema.sql
-```
+The API applies `backend/schema.sql` on every boot: it creates the `users` and
+`properties` tables, adds the `owner_email` / `business_owner_email` columns to
+`tasks`, and creates the indexes. Every statement is `IF NOT EXISTS`, so a
+restart is always safe and there is no manual migration step.
 
-Import to RDS:
-```bash
-psql "postgres://gyftr_admin:<pass>@<rds-endpoint>:5432/postgres" -f schema.sql
-```
+The core work tables must exist first:
 
-Export + import data:
-```bash
-pg_dump "postgres://postgres:<pass>@<supabase-host>:5432/postgres" \
-  --data-only --no-owner -f data.sql
-psql "postgres://gyftr_admin:<pass>@<rds-endpoint>:5432/postgres" -f data.sql
-```
+| Table | Holds |
+|---|---|
+| `tasks` | the work items |
+| `effort_entries` | logged hours, one row per entry |
+| `comments` | task discussion |
+| `audit_log` | who changed what |
+| `task_files` | attachments |
 
-**Note**: Supabase RLS policies are Supabase-specific — don't export them. Access control is now handled by the Express backend (`requireAuth` middleware + the hardcoded role lists in `useAuth.js`).
+On first boot, `backend/seed/properties.json` seeds the property list (only
+while the `properties` table is empty).
+
+**Access control** is enforced entirely by the Express backend — Cognito JWT
+verification in `backend/middleware/auth.js`, then the rules in
+`backend/permissions.js`, applied on every read and write route. There are no
+role lists in the frontend: a user's team and access level come from the `users`
+table and are edited in the portal under **Admin · PMO → Team Directory**.
 
 ---
 

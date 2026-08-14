@@ -1,0 +1,668 @@
+[
+  {
+    "name": "Smartbuy (HDFC)",
+    "team": "Content",
+    "color": "#16A34A",
+    "sort_order": 1
+  },
+  {
+    "name": "HDFC Bank Millennia/Rewards",
+    "team": "Content",
+    "color": "#0277BD",
+    "sort_order": 2
+  },
+  {
+    "name": "GyFTR",
+    "team": "Content",
+    "color": "#7C3AED",
+    "sort_order": 3
+  },
+  {
+    "name": "EDGE REWARDS (Axis)",
+    "team": "Content",
+    "color": "#B91C1C",
+    "sort_order": 4
+  },
+  {
+    "name": "Standard Chartered",
+    "team": "Content",
+    "color": "#0891B2",
+    "sort_order": 5
+  },
+  {
+    "name": "SBI Card",
+    "team": "Content",
+    "color": "#D97706",
+    "sort_order": 6
+  },
+  {
+    "name": "YONO SBI",
+    "team": "Content",
+    "color": "#059669",
+    "sort_order": 7
+  },
+  {
+    "name": "SBI SimplyCLICK",
+    "team": "Content",
+    "color": "#134E4A",
+    "sort_order": 8
+  },
+  {
+    "name": "Indus Moments/IndusInd Insta Vouchers",
+    "team": "Content",
+    "color": "#E11D74",
+    "sort_order": 9
+  },
+  {
+    "name": "IndusInd Shopplus/Xtrasmiles",
+    "team": "Content",
+    "color": "#F97316",
+    "sort_order": 10
+  },
+  {
+    "name": "Indus Flash Sale / IndusIndOffer",
+    "team": "Content",
+    "color": "#047857",
+    "sort_order": 11
+  },
+  {
+    "name": "Yescart",
+    "team": "Content",
+    "color": "#84CC16",
+    "sort_order": 12
+  },
+  {
+    "name": "Yesrewardz",
+    "team": "Content",
+    "color": "#9D174D",
+    "sort_order": 13
+  },
+  {
+    "name": "HP Pay",
+    "team": "Content",
+    "color": "#14532D",
+    "sort_order": 14
+  },
+  {
+    "name": "IRCTC",
+    "team": "Content",
+    "color": "#DC2626",
+    "sort_order": 15
+  },
+  {
+    "name": "Prism Anmol Rishtey",
+    "team": "Content",
+    "color": "#EA580C",
+    "sort_order": 16
+  },
+  {
+    "name": "Prism Aspire",
+    "team": "Content",
+    "color": "#EC4899",
+    "sort_order": 17
+  },
+  {
+    "name": "RBL",
+    "team": "Content",
+    "color": "#4338CA",
+    "sort_order": 18
+  },
+  {
+    "name": "RBL BANK MY SHOP",
+    "team": "Content",
+    "color": "#854D0E",
+    "sort_order": 19
+  },
+  {
+    "name": "BFL",
+    "team": "Content",
+    "color": "#EF4444",
+    "sort_order": 20
+  },
+  {
+    "name": "Kotak",
+    "team": "Content",
+    "color": "#F59E0B",
+    "sort_order": 21
+  },
+  {
+    "name": "DBS",
+    "team": "Content",
+    "color": "#C2410C",
+    "sort_order": 22
+  },
+  {
+    "name": "Federal",
+    "team": "Content",
+    "color": "#312E81",
+    "sort_order": 23
+  },
+  {
+    "name": "IDFC",
+    "team": "Content",
+    "color": "#9333EA",
+    "sort_order": 24
+  },
+  {
+    "name": "HSBC/Insta benefits",
+    "team": "Content",
+    "color": "#991B1B",
+    "sort_order": 25
+  },
+  {
+    "name": "Timespoint",
+    "team": "Content",
+    "color": "#DB2777",
+    "sort_order": 26
+  },
+  {
+    "name": "AU Rewardz",
+    "team": "Content",
+    "color": "#0F766E",
+    "sort_order": 27
+  },
+  {
+    "name": "AU Click2Gift",
+    "team": "Content",
+    "color": "#F43F5E",
+    "sort_order": 28
+  },
+  {
+    "name": "Prince Pipe",
+    "team": "Content",
+    "color": "#5B21B6",
+    "sort_order": 29
+  },
+  {
+    "name": "Airtel Ratna",
+    "team": "Content",
+    "color": "#E53935",
+    "sort_order": 30
+  },
+  {
+    "name": "Zillion",
+    "team": "Content",
+    "color": "#A855F7",
+    "sort_order": 31
+  },
+  {
+    "name": "BPCL Smartfleet",
+    "team": "Content",
+    "color": "#155E75",
+    "sort_order": 32
+  },
+  {
+    "name": "BPCL MAK",
+    "team": "Content",
+    "color": "#78350F",
+    "sort_order": 33
+  },
+  {
+    "name": "HP Drive Track Plus",
+    "team": "Content",
+    "color": "#581C87",
+    "sort_order": 34
+  },
+  {
+    "name": "Creditlink",
+    "team": "Content",
+    "color": "#22C55E",
+    "sort_order": 35
+  },
+  {
+    "name": "Dell Loyalty program",
+    "team": "Content",
+    "color": "#6366F1",
+    "sort_order": 36
+  },
+  {
+    "name": "Postpe",
+    "team": "Content",
+    "color": "#0EA5E9",
+    "sort_order": 37
+  },
+  {
+    "name": "IOCL Xtra Rewards",
+    "team": "Content",
+    "color": "#92400E",
+    "sort_order": 38
+  },
+  {
+    "name": "Reward Program",
+    "team": "Content",
+    "color": "#831843",
+    "sort_order": 39
+  },
+  {
+    "name": "Nexus Bachat",
+    "team": "Content",
+    "color": "#C026D3",
+    "sort_order": 40
+  },
+  {
+    "name": "Expressgifts",
+    "team": "Content",
+    "color": "#064E3B",
+    "sort_order": 41
+  },
+  {
+    "name": "NFTERNR",
+    "team": "Content",
+    "color": "#164E63",
+    "sort_order": 42
+  },
+  {
+    "name": "Cera Superstar",
+    "team": "Content",
+    "color": "#D946EF",
+    "sort_order": 43
+  },
+  {
+    "name": "Wonder Cement",
+    "team": "Content",
+    "color": "#4D7C0F",
+    "sort_order": 44
+  },
+  {
+    "name": "Bosch",
+    "team": "Content",
+    "color": "#9A3412",
+    "sort_order": 45
+  },
+  {
+    "name": "JK Paper",
+    "team": "Content",
+    "color": "#374151",
+    "sort_order": 46
+  },
+  {
+    "name": "JK Cement",
+    "team": "Content",
+    "color": "#57534E",
+    "sort_order": 47
+  },
+  {
+    "name": "Sintex",
+    "team": "Content",
+    "color": "#1E3A8A",
+    "sort_order": 48
+  },
+  {
+    "name": "FINOLEX BANNER",
+    "team": "Content",
+    "color": "#CA8A04",
+    "sort_order": 49
+  },
+  {
+    "name": "Visa Offers",
+    "team": "Content",
+    "color": "#3B82F6",
+    "sort_order": 50
+  },
+  {
+    "name": "Wedding Box",
+    "team": "Content",
+    "color": "#F472B6",
+    "sort_order": 51
+  },
+  {
+    "name": "Godrej Club One",
+    "team": "Content",
+    "color": "#5E35B1",
+    "sort_order": 52
+  },
+  {
+    "name": "Amex",
+    "team": "Content",
+    "color": "#283593",
+    "sort_order": 53
+  },
+  {
+    "name": "Himalya Sanjeevani",
+    "team": "Content",
+    "color": "#2E7D32",
+    "sort_order": 54
+  },
+  {
+    "name": "VARROC",
+    "team": "Content",
+    "color": "#E65100",
+    "sort_order": 55
+  },
+  {
+    "name": "Spentro",
+    "team": "Content",
+    "color": "#0E4C5A",
+    "sort_order": 56
+  },
+  {
+    "name": "Perfetti Van Melle",
+    "team": "Content",
+    "color": "#BE185D",
+    "sort_order": 57
+  },
+  {
+    "name": "LUMINOUS",
+    "team": "Content",
+    "color": "#EAB308",
+    "sort_order": 58
+  },
+  {
+    "name": "MuffinPay",
+    "team": "Content",
+    "color": "#4C1D95",
+    "sort_order": 59
+  },
+  {
+    "name": "Muffin Green Finance",
+    "team": "Content",
+    "color": "#10B981",
+    "sort_order": 60
+  },
+  {
+    "name": "LKP Finance Ltd",
+    "team": "Content",
+    "color": "#065F46",
+    "sort_order": 61
+  },
+  {
+    "name": "HP Lubricant",
+    "team": "Content",
+    "color": "#6B3A1F",
+    "sort_order": 62
+  },
+  {
+    "name": "GyFTR",
+    "team": "Creative",
+    "color": "#7C3AED",
+    "sort_order": 1
+  },
+  {
+    "name": "Kotak Instant Vouchers",
+    "team": "Creative",
+    "color": "#F59E0B",
+    "sort_order": 2
+  },
+  {
+    "name": "IRCTC",
+    "team": "Creative",
+    "color": "#DC2626",
+    "sort_order": 3
+  },
+  {
+    "name": "SBI Yono",
+    "team": "Creative",
+    "color": "#059669",
+    "sort_order": 4
+  },
+  {
+    "name": "HDFC - Instant Vouchers",
+    "team": "Creative",
+    "color": "#0277BD",
+    "sort_order": 5
+  },
+  {
+    "name": "Nexus",
+    "team": "Creative",
+    "color": "#8B5CF6",
+    "sort_order": 6
+  },
+  {
+    "name": "Axis Edge",
+    "team": "Creative",
+    "color": "#B91C1C",
+    "sort_order": 7
+  },
+  {
+    "name": "Indusind",
+    "team": "Creative",
+    "color": "#E11D74",
+    "sort_order": 8
+  },
+  {
+    "name": "RBL Bank Offers",
+    "team": "Creative",
+    "color": "#4338CA",
+    "sort_order": 9
+  },
+  {
+    "name": "HSBC Insta Benefits",
+    "team": "Creative",
+    "color": "#991B1B",
+    "sort_order": 10
+  },
+  {
+    "name": "Amex Reward",
+    "team": "Creative",
+    "color": "#283593",
+    "sort_order": 11
+  },
+  {
+    "name": "BFL",
+    "team": "Creative",
+    "color": "#EF4444",
+    "sort_order": 12
+  },
+  {
+    "name": "Hello BPCL",
+    "team": "Creative",
+    "color": "#155E75",
+    "sort_order": 13
+  },
+  {
+    "name": "BPCL MAK",
+    "team": "Creative",
+    "color": "#78350F",
+    "sort_order": 14
+  },
+  {
+    "name": "Zillion",
+    "team": "Creative",
+    "color": "#A855F7",
+    "sort_order": 15
+  },
+  {
+    "name": "Reward Program",
+    "team": "Creative",
+    "color": "#831843",
+    "sort_order": 16
+  },
+  {
+    "name": "Shopplus",
+    "team": "Creative",
+    "color": "#0EA5E9",
+    "sort_order": 17
+  },
+  {
+    "name": "SC-Insta",
+    "team": "Creative",
+    "color": "#0891B2",
+    "sort_order": 18
+  },
+  {
+    "name": "Yescart",
+    "team": "Creative",
+    "color": "#84CC16",
+    "sort_order": 19
+  },
+  {
+    "name": "Prism - Gold",
+    "team": "Creative",
+    "color": "#CA8A04",
+    "sort_order": 20
+  },
+  {
+    "name": "Prism - Aspire",
+    "team": "Creative",
+    "color": "#EC4899",
+    "sort_order": 21
+  },
+  {
+    "name": "YesRewardz",
+    "team": "Creative",
+    "color": "#9D174D",
+    "sort_order": 22
+  },
+  {
+    "name": "SBI Card",
+    "team": "Creative",
+    "color": "#D97706",
+    "sort_order": 23
+  },
+  {
+    "name": "Hp Pay",
+    "team": "Creative",
+    "color": "#14532D",
+    "sort_order": 24
+  },
+  {
+    "name": "Prism",
+    "team": "Creative",
+    "color": "#F97316",
+    "sort_order": 25
+  },
+  {
+    "name": "Wonder Cement",
+    "team": "Creative",
+    "color": "#4D7C0F",
+    "sort_order": 26
+  },
+  {
+    "name": "AU Bank",
+    "team": "Creative",
+    "color": "#0F766E",
+    "sort_order": 27
+  },
+  {
+    "name": "Visa",
+    "team": "Creative",
+    "color": "#3B82F6",
+    "sort_order": 28
+  },
+  {
+    "name": "DBS",
+    "team": "Creative",
+    "color": "#C2410C",
+    "sort_order": 29
+  },
+  {
+    "name": "Bosch",
+    "team": "Creative",
+    "color": "#9A3412",
+    "sort_order": 30
+  },
+  {
+    "name": "Prince Pipe",
+    "team": "Creative",
+    "color": "#5B21B6",
+    "sort_order": 31
+  },
+  {
+    "name": "Prism Anmol Rishtey",
+    "team": "Creative",
+    "color": "#EA580C",
+    "sort_order": 32
+  },
+  {
+    "name": "Indus Moment",
+    "team": "Creative",
+    "color": "#DB2777",
+    "sort_order": 33
+  },
+  {
+    "name": "IDFC",
+    "team": "Creative",
+    "color": "#9333EA",
+    "sort_order": 34
+  },
+  {
+    "name": "Federal",
+    "team": "Creative",
+    "color": "#312E81",
+    "sort_order": 35
+  },
+  {
+    "name": "Hp Drive Track Plus",
+    "team": "Creative",
+    "color": "#581C87",
+    "sort_order": 36
+  },
+  {
+    "name": "SBI Simply Click",
+    "team": "Creative",
+    "color": "#134E4A",
+    "sort_order": 37
+  },
+  {
+    "name": "Godrej One",
+    "team": "Creative",
+    "color": "#5E35B1",
+    "sort_order": 38
+  },
+  {
+    "name": "Ultratech",
+    "team": "Creative",
+    "color": "#374151",
+    "sort_order": 39
+  },
+  {
+    "name": "Evolve",
+    "team": "Creative",
+    "color": "#10B981",
+    "sort_order": 40
+  },
+  {
+    "name": "Airtel",
+    "team": "Creative",
+    "color": "#E53935",
+    "sort_order": 41
+  },
+  {
+    "name": "Sintex",
+    "team": "Creative",
+    "color": "#1E3A8A",
+    "sort_order": 42
+  },
+  {
+    "name": "Zomato",
+    "team": "Creative",
+    "color": "#E23744",
+    "sort_order": 43
+  },
+  {
+    "name": "Xtra Reward",
+    "team": "Creative",
+    "color": "#F43F5E",
+    "sort_order": 44
+  },
+  {
+    "name": "Luminous",
+    "team": "Creative",
+    "color": "#EAB308",
+    "sort_order": 45
+  },
+  {
+    "name": "Money Control",
+    "team": "Creative",
+    "color": "#16A34A",
+    "sort_order": 46
+  },
+  {
+    "name": "Pocket FM",
+    "team": "Creative",
+    "color": "#6366F1",
+    "sort_order": 47
+  },
+  {
+    "name": "Common",
+    "team": "Creative",
+    "color": "#57534E",
+    "sort_order": 48
+  },
+  {
+    "name": "Cera Superstar",
+    "team": "Creative",
+    "color": "#D946EF",
+    "sort_order": 49
+  }
+]

@@ -3,13 +3,11 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { X, Table2, ChevronDown } from "lucide-react";
 import { Avatar, Caret } from "../ui";
 import {
-  PROPERTIES, CREATIVE_PROPERTIES,
   TASK_TYPES, CREATIVE_TASK_TYPES,
-  OWNERS, CREATIVE_OWNERS,
-  BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
   PRIORITY_LIST,
-  PROP_COLOR, CREATIVE_PROP_COLOR,
 } from "../../constants";
+import { useDirectory } from "../../lib/DirectoryProvider";
+import { useProperties } from "../../lib/PropertiesProvider";
 import { totalEffort, fmtHrs, fmtDate, dayDiff, plusDays, TODAY_ISO, typeColor } from "../../utils";
 
 function TypeMultiSelect({ value, onChange, taskTypes }) {
@@ -48,23 +46,41 @@ function TypeMultiSelect({ value, onChange, taskTypes }) {
 }
 
 export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content" }) {
+  const { ownersFor, bizOwnersFor } = useDirectory();
+  const { listFor, colorMapFor } = useProperties();
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES    : PROPERTIES;
-  const ownerList    = isCreative ? CREATIVE_OWNERS        : OWNERS;
-  const bizOwners    = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR    : PROP_COLOR;
+  const propList     = listFor(userTeam);
+  const ownerList    = ownersFor(userTeam);
+  const bizOwners    = bizOwnersFor(userTeam);
+  const propColorMap = colorMapFor(userTeam);
   const taskTypes    = isCreative ? CREATIVE_TASK_TYPES    : TASK_TYPES;
   /* ── Form state ── */
   const [f, setF] = useState({
-    property:      propList[0],
+    property:      "",
     task:          "",
     type:          [],
-    businessOwner: bizOwners[0],
-    assignee:      ownerList[0],
+    businessOwner: "",
+    assignee:      "",
     expected:      TODAY_ISO,
     due:           plusDays(TODAY_ISO,7),
     priority:      "Medium",
   });
+
+  // The directory and property list arrive asynchronously — seed the defaults
+  // when they do. Deps are primitives, and the updater bails out when there is
+  // nothing to fill, so this settles after one pass instead of looping.
+  const firstOwner = ownerList[0] || "";
+  const firstBiz   = bizOwners[0] || "";
+  const firstProp  = propList[0]  || "";
+  useEffect(() => {
+    setF(p => {
+      const assignee      = p.assignee      || firstOwner;
+      const businessOwner = p.businessOwner || firstBiz;
+      const property      = p.property      || firstProp;
+      if (assignee === p.assignee && businessOwner === p.businessOwner && property === p.property) return p;
+      return { ...p, assignee, businessOwner, property };
+    });
+  }, [firstOwner, firstBiz, firstProp]);
   const set   = (k,v) => setF(p=>({...p,[k]:v}));
   const valid = f.task.trim() && f.property && f.type.length > 0 && f.businessOwner && f.assignee && f.expected;
 
@@ -84,7 +100,13 @@ export function CreateTaskModal({ tasks, onClose, onCreate, userTeam = "Content"
   /* ── Availability panel state ── */
   const AV_DAYS = [{ k:1, l:"Today" },{ k:3, l:"3d" },{ k:7, l:"7d" },{ k:15, l:"15d" },{ k:0, l:"All" }];
   const [avDays,       setAvDays]       = useState(7);
-  const [selProps,     setSelProps]     = useState(propList.slice());
+  const [selProps,     setSelProps]     = useState([]);
+  // Default the availability panel to "all properties" once the list arrives.
+  const propSig = propList.join("|");
+  useEffect(() => {
+    setSelProps(prev => prev.length ? prev : propList.slice());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propSig]);
   const [propMenuOpen, setPropMenuOpen] = useState(false);
   const [selTypes,     setSelTypes]     = useState(() => taskTypes.slice());
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);

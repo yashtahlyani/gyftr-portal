@@ -1,6 +1,7 @@
-// src/lib/api.js — replaces supabase.js
-// All DB access goes through the backend API (running on AWS).
-// Auth token is pulled from Cognito session via getAuthToken().
+// src/lib/api.js — the only way this app talks to data.
+// Every read and write goes through the Express API on AWS; the browser holds
+// no database credentials. The bearer token is the Cognito ID token, set by
+// useAuth after sign-in.
 
 import { fmtDate, relativeTime } from '../utils';
 

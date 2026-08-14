@@ -2,11 +2,42 @@
 
 import { Router } from 'express';
 import { query } from '../db.js';
+import { getUserByName } from '../identity.js';
+import { isAdmin, canSeeTask, checkTaskPatch } from '../permissions.js';
 
 const router = Router();
 
-// ── Shared SQL: fetch all tasks with joined relations ──────────────────────
-const TASKS_QUERY = `
+async function getTaskById(id) {
+  const { rows } = await query('SELECT * FROM tasks WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+/**
+ * What this caller is allowed to see. Enforced here rather than in the browser,
+ * so the answer does not depend on a hardcoded list shipped in the JS bundle.
+ *
+ *   super_admin → everything
+ *   manager     → everything on their own team
+ *   user        → every task they own or are business owner of, on ANY team.
+ *                 Deliberately not team-gated: a task assigned to you is yours
+ *                 even if the row's `team` is stale, wrong or NULL.
+ */
+function visibilityFilter(identity) {
+  if (identity.role === 'super_admin') return { where: '', params: [] };
+  if (identity.role === 'manager') {
+    return { where: 'WHERE t.team = $1', params: [identity.team] };
+  }
+  return {
+    where: `WHERE t.owner_email = $1
+               OR t.business_owner_email = $1
+               OR lower(btrim(t.owner))          = lower(btrim($2))
+               OR lower(btrim(t.business_owner)) = lower(btrim($2))`,
+    params: [identity.email, identity.name],
+  };
+}
+
+// ── Shared SQL: fetch tasks with joined relations ──────────────────────────
+const tasksQuery = (where) => `
   SELECT
     t.*,
     COALESCE(
@@ -38,14 +69,16 @@ const TASKS_QUERY = `
   LEFT JOIN comments       c  ON c.task_id  = t.id
   LEFT JOIN audit_log      al ON al.task_id = t.id
   LEFT JOIN task_files     tf ON tf.task_id = t.id
+  ${where}
   GROUP BY t.id
   ORDER BY t.updated_at DESC
 `;
 
-// GET /api/tasks — fetch all tasks with all related data
+// GET /api/tasks — tasks visible to the caller, with all related data
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await query(TASKS_QUERY);
+    const { where, params } = visibilityFilter(req.identity);
+    const { rows } = await query(tasksQuery(where), params);
     res.json(rows);
   } catch (err) {
     console.error('[GET /tasks]', err.message);
@@ -67,23 +100,36 @@ router.get('/next-id', async (req, res) => {
   }
 });
 
-// POST /api/tasks — create new task
+// POST /api/tasks — create new task (Admin and above)
 router.post('/', async (req, res) => {
   const f = req.body;
+  if (!isAdmin(req.identity)) {
+    return res.status(403).json({ error: 'Only an admin can create tasks' });
+  }
   try {
+    const owner    = await getUserByName(f.owner);
+    const bizOwner = await getUserByName(f.business_owner);
+
+    // The assignee's directory profile decides the team, so a task can never
+    // land on a team its owner cannot see.
+    const team = owner && owner.team !== 'Admin' ? owner.team : (f.team || 'Content');
+
     await query(
       `INSERT INTO tasks
-        (id, team, property, task, type, owner, business_owner, priority,
+        (id, team, property, task, type, owner, owner_email,
+         business_owner, business_owner_email, priority,
          effort_status, project_status, lock_state, expected, due,
          delivered, description, running, started_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [
-        f.id, f.team, f.property, f.task, f.type, f.owner, f.business_owner,
+        f.id, team, f.property, f.task, f.type,
+        f.owner, owner?.email || null,
+        f.business_owner, bizOwner?.email || null,
         f.priority, 'Discussion', 'Discussion', 'unlocked',
         f.expected || null, f.due || null, null, '', false, null,
       ]
     );
-    res.status(201).json({ id: f.id });
+    res.status(201).json({ id: f.id, team });
   } catch (err) {
     console.error('[POST /tasks]', err.message);
     res.status(500).json({ error: err.message });
@@ -94,6 +140,12 @@ router.post('/', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
+
+  // Authorise against the task as it actually is, not as the client claims.
+  const existing = await getTaskById(id).catch(() => null);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+  const denied = checkTaskPatch(req.identity, existing, updates);
+  if (denied) return res.status(403).json({ error: denied });
 
   // Map frontend field names → DB column names
   const colMap = {
@@ -127,12 +179,29 @@ router.patch('/:id', async (req, res) => {
     }
   }
 
-  if (setClauses.length === 0) return res.json({ ok: true });
-
-  setClauses.push(`updated_at = NOW()`);
-  values.push(id);
-
   try {
+    // Reassignment re-derives the identity link and the team, so the new
+    // assignee actually sees the task.
+    if (updates.owner !== undefined) {
+      const owner = await getUserByName(updates.owner);
+      setClauses.push(`owner_email = $${idx++}`);
+      values.push(owner?.email || null);
+      if (owner && owner.team !== 'Admin') {
+        setClauses.push(`team = $${idx++}`);
+        values.push(owner.team);
+      }
+    }
+    if (updates.businessOwner !== undefined) {
+      const bizOwner = await getUserByName(updates.businessOwner);
+      setClauses.push(`business_owner_email = $${idx++}`);
+      values.push(bizOwner?.email || null);
+    }
+
+    if (setClauses.length === 0) return res.json({ ok: true });
+
+    setClauses.push(`updated_at = NOW()`);
+    values.push(id);
+
     await query(
       `UPDATE tasks SET ${setClauses.join(', ')} WHERE id = $${idx}`,
       values
@@ -144,9 +213,18 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/tasks/:id — cascade delete all related records then the task
+// DELETE /api/tasks/:id — cascade delete all related records then the task.
+// Admin and above, and only within their own scope.
 router.delete('/:id', async (req, res) => {
   const { id } = req.params;
+  if (!isAdmin(req.identity)) {
+    return res.status(403).json({ error: 'Only an admin can delete tasks' });
+  }
+  const existing = await getTaskById(id).catch(() => null);
+  if (!existing) return res.status(404).json({ error: 'Task not found' });
+  if (!canSeeTask(req.identity, existing)) {
+    return res.status(403).json({ error: 'You do not have access to this task' });
+  }
   try {
     await query('DELETE FROM effort_entries WHERE task_id = $1', [id]);
     await query('DELETE FROM comments       WHERE task_id = $1', [id]);

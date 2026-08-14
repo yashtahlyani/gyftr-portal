@@ -4,7 +4,6 @@
   "private": true,
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
-    "@supabase/supabase-js": "^2.107.0",
     "pg": "^8.11.3"
   }
 }

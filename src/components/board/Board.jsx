@@ -5,13 +5,12 @@ import {
   StatusChip, PriorityChip, ChipMenu, TextCell, DateCell, EffortAddCell, TimerCell, LockCell, Avatar, Caret,
 } from "../ui";
 import {
-  PROPERTIES, CREATIVE_PROPERTIES,
   PROJECT_STATUS_LIST, EFFORT_STATUS_LIST,
-  OWNERS, CREATIVE_OWNERS,
-  BUSINESS_OWNERS, CREATIVE_BUSINESS_OWNERS,
-  PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CREATIVE_TASK_TYPES, CURRENT_USER,
+  PRIORITY_LIST, PRIORITY, STATUS, TASK_TYPES, CREATIVE_TASK_TYPES,
 } from "../../constants";
-import { PROP_COLOR, CREATIVE_PROP_COLOR } from "../../constants";
+import { useDirectory } from "../../lib/DirectoryProvider";
+import { useProperties } from "../../lib/PropertiesProvider";
+import { withCurrent } from "../../lib/directory";
 import { totalEffort, fmtHrs, fmtDate, taskNo, agingDays, exportBoardCSV, TODAY_ISO, todayISO } from "../../utils";
 
 const COLS = [
@@ -86,11 +85,13 @@ const HB_KEY = (id) => `gyftr_hb_${id}`;
 
 export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, role, onRefresh, userTeam = "Content" }) {
   const isManager = role === "manager" || role === "super_admin";
+  const { ownersFor, bizOwnersFor } = useDirectory();
+  const { listFor, colorMapFor } = useProperties();
   const isCreative   = userTeam === "Creative";
-  const propList     = isCreative ? CREATIVE_PROPERTIES   : PROPERTIES;
-  const ownerList    = isCreative ? CREATIVE_OWNERS       : OWNERS;
-  const bizOwnerList = isCreative ? CREATIVE_BUSINESS_OWNERS : BUSINESS_OWNERS;
-  const propColorMap = isCreative ? CREATIVE_PROP_COLOR   : PROP_COLOR;
+  const propList     = listFor(userTeam);
+  const ownerList    = ownersFor(userTeam);
+  const bizOwnerList = bizOwnersFor(userTeam);
+  const propColorMap = colorMapFor(userTeam);
   const taskTypes    = isCreative ? CREATIVE_TASK_TYPES   : TASK_TYPES;
   const [q,             setQ]             = useState("");
   const [fProp,         setFProp]         = useState("All");
@@ -402,7 +403,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                         <Avatar name={t.owner} size={20}/>
                         {isManager
                           ? <select className="gx-sel" value={t.owner||""} onChange={e=>patch(t.id,{owner:e.target.value},`Reassigned to ${e.target.value}`)}>
-                              {ownerList.map(o=><option key={o}>{o}</option>)}
+                              {withCurrent(ownerList, t.owner).map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.owner}</span>}
                       </div>
@@ -414,7 +415,7 @@ export function Board({ tasks, patch, addEffort, stopTimerAndLog, openDrawer, ro
                         <Avatar name={t.businessOwner} size={20}/>
                         {isManager
                           ? <select className="gx-sel" value={t.businessOwner||""} onChange={e=>patch(t.id,{businessOwner:e.target.value},`Business owner → ${e.target.value}`)}>
-                              {bizOwnerList.map(o=><option key={o}>{o}</option>)}
+                              {withCurrent(bizOwnerList, t.businessOwner).map(o=><option key={o}>{o}</option>)}
                             </select>
                           : <span>{t.businessOwner}</span>}
                       </div>

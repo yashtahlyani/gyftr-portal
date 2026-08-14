@@ -4,7 +4,7 @@ import {
   ChevronDown, Flag, Plus, Play, Square,
   Check, Lock, Unlock,
 } from "lucide-react";
-import { STATUS, PRIORITY, OWNERS, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
+import { STATUS, PRIORITY, EFFORT_STATUS_LIST, PROJECT_STATUS_LIST } from "../../constants";
 import { initials, avatarColor, fmtHrs } from "../../utils";
 
 /* ── Avatar ── */
