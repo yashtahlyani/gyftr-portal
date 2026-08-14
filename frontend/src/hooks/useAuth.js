@@ -88,7 +88,9 @@ export function useAuth() {
         },
         onFailure(err) { reject(err); },
         newPasswordRequired(userAttributes) {
-          // Cognito rejects these back on the challenge — they are not writable here.
+          // Cognito rejects already-set / non-writable attrs on this challenge.
+          // Passing `email` again → "Cannot modify an already provided email".
+          delete userAttributes.email;
           delete userAttributes.email_verified;
           delete userAttributes.email_address;
           delete userAttributes.phone_number_verified;
