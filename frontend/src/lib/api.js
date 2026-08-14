@@ -7,16 +7,67 @@ import { fmtDate, relativeTime } from '../utils';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:7878';
 
-// ── Token store — set by useAuth after Cognito login ──────────────────────
+// ── Token store ────────────────────────────────────────────────────────────
+// A Cognito ID token expires after an hour. Holding one captured at login
+// meant that after 60 minutes every request went out with a dead token, the
+// API answered 401, and the app looked broken until the user reloaded the
+// page — reloading worked because it re-read the session. So instead of a
+// fixed token we hold a *provider* that returns a currently-valid one, and
+// Cognito refreshes it transparently when needed.
 let _token = null;
+let _tokenProvider = null;
+
 export const setAuthToken = (t) => { _token = t; };
 export const getAuthToken = ()  => _token;
 
+/** @param {null | (() => Promise<string|null>)} fn */
+export const setAuthTokenProvider = (fn) => { _tokenProvider = fn; };
+
+// Called when the session cannot be renewed — wired to logout by useAuth so
+// the user is sent to the login screen instead of hitting silent 401s.
+let _onSessionExpired = null;
+export const setOnSessionExpired = (fn) => { _onSessionExpired = fn; };
+
+async function currentToken() {
+  if (_tokenProvider) {
+    try {
+      const fresh = await _tokenProvider();
+      if (fresh) { _token = fresh; return fresh; }
+      if (_onSessionExpired) _onSessionExpired();
+      return null;
+    } catch {
+      return _token;   // fall back to the last known token rather than failing outright
+    }
+  }
+  return _token;
+}
+
 // ── Base fetch with auth header ────────────────────────────────────────────
+// If the API host accepts the connection but never answers — a security group
+// dropping traffic, an ALB with no healthy target — fetch waits forever, and
+// the UI just spins with no error. Fail loudly instead.
+const REQUEST_TIMEOUT_MS = 15000;
+
 export async function apiFetch(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-  if (_token) headers['Authorization'] = `Bearer ${_token}`;
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const token = await currentToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error(`The server did not respond within ${REQUEST_TIMEOUT_MS / 1000}s (${API_URL}). It may be down or unreachable.`, { cause: err });
+    }
+    throw new Error(`Could not reach the server at ${API_URL}. Check the API is running and its CORS origin matches this site.`, { cause: err });
+  } finally {
+    clearTimeout(timer);
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API error ${res.status}`);
