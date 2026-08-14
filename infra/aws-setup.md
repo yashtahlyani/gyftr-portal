@@ -64,7 +64,7 @@ AWS setup for the GyFTR Marketing Portal. The stack is AWS-only: RDS Postgres, C
    ```bash
    sudo dnf install -y nodejs git
    git clone <repo> /app/gyftr-portal
-   cd /app/gyftr-portal/backend
+   cd /app/marketing-portal/backend
    npm install
    # Create /app/gyftr-portal/backend/.env with:
    # PORT=7878
@@ -124,7 +124,7 @@ AWS setup for the GyFTR Marketing Portal. The stack is AWS-only: RDS Postgres, C
 
 **Backend** (on EC2):
 ```bash
-cd /app/gyftr-portal && git pull
+cd /app/marketing-portal && git pull
 cd backend && npm install
 pm2 restart gyftr-api
 ```

@@ -200,7 +200,7 @@ aws cloudfront create-invalidation --distribution-id <CF_ID> --paths "/*"
 
 ```bash
 # SSH into EC2
-cd /app/gyftr-portal/backend
+cd /app/marketing-portal/backend
 pm2 start server.js --name gyftr-api
 pm2 save
 ```
