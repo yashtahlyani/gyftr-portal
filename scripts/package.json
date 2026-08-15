@@ -5,5 +5,8 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
     "pg": "^8.11.3"
+  },
+  "scripts": {
+    "smoke-test": "node smoke-test.js"
   }
 }

@@ -91,7 +91,27 @@ node force-password-reset.js            # prompts at next login
 node force-password-reset.js --signout  # ...or ends live sessions now
 ```
 
-## 5. Review access
+## 5. Verify the deploy actually works
+
+```bash
+cd scripts
+export SMOKE_API_URL=https://api.gyftr.net
+export SMOKE_ORIGIN=https://<your-cloudfront-domain>   # enables the CORS check
+
+# optional but worth it — proves auth and real data end to end
+export SMOKE_TOKEN=$(aws cognito-idp admin-initiate-auth   --user-pool-id <pool-id> --client-id <client-id>   --auth-flow ADMIN_USER_PASSWORD_AUTH   --auth-parameters USERNAME=<email>,PASSWORD=<password>   --query 'AuthenticationResult.IdToken' --output text)
+
+npm run smoke-test
+```
+
+Checks the four things that have caused every login incident so far: the API
+answers, the database round-trips, protected routes reject anonymous callers,
+and CORS accepts the CloudFront origin. That last one is the check curl from
+the server cannot do for you — the browser is what gets blocked.
+
+Exits non-zero on failure, so it is safe to wire into a deploy script.
+
+## 6. Review access
 
 ```bash
 node audit-access.js                       # readable report + warnings

@@ -5,7 +5,7 @@
 import 'dotenv/config';
 import express      from 'express';
 import cors         from 'cors';
-import { initDb }   from './db.js';
+import { initDb, query } from './db.js';
 import { requireAuth } from './middleware/auth.js';
 import taskRoutes    from './routes/tasks.js';
 import effortRoutes  from './routes/effort.js';
@@ -44,7 +44,31 @@ app.use(cors({
 app.use(express.json());
 
 // ── Health check (no auth needed) ─────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ ok: true }));
+// Liveness — is the process up? This is what the ALB target group polls.
+// Deliberately does NOT touch the database: a brief RDS blip would otherwise
+// deregister every instance at once and turn a degraded service into a total
+// outage.
+app.get('/health', (_req, res) => res.json({ ok: true, service: 'gyftr-portal-api' }));
+
+// Readiness — can it actually serve? Verifies the database round-trips.
+// `/health` returning ok while every request 500s is the failure mode that
+// keeps costing us time: pm2 says online, the ALB says healthy, and the portal
+// is dead. Use this one when diagnosing, and from scripts/smoke-test.js.
+app.get('/health/deep', async (_req, res) => {
+  const started = Date.now();
+  try {
+    await query('SELECT 1');
+    res.json({ ok: true, database: 'reachable', latencyMs: Date.now() - started });
+  } catch (err) {
+    console.error('[health/deep] database unreachable:', err.message);
+    res.status(503).json({
+      ok: false,
+      database: 'unreachable',
+      error: err.message,
+      latencyMs: Date.now() - started,
+    });
+  }
+});
 
 // ── Protected routes (all require valid Cognito token) ─────────────────────
 app.use('/api/users',      requireAuth, userRoutes);
