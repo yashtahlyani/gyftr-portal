@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: [Marketing-v1-latest, master]
+  pull_request:
+    branches: [Marketing-v1-latest, master]
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+        continue-on-error: true   # existing debt; do not block on it
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          # Placeholders only — real values come from CodeBuild. This proves the
+          # bundle compiles and that the env actually reaches it (see next step).
+          VITE_API_URL: https://api.example.com
+          VITE_COGNITO_USER_POOL_ID: ap-south-1_ciplaceholder
+          VITE_COGNITO_CLIENT_ID: ci-placeholder-client-id
+
+      - name: Cognito config must reach the bundle
+        working-directory: frontend
+        run: |
+          # Vite inlines VITE_* at build time. If that ever stops working, the
+          # build still exits 0 and users get a blank white page, because
+          # new CognitoUserPool() throws before React renders. Catch it here.
+          if ! grep -rq "ap-south-1_ciplaceholder" dist/; then
+            echo "::error::VITE_COGNITO_USER_POOL_ID did not make it into the bundle."
+            echo "A build like this renders a blank page. Check frontend/.env and the build args."
+            exit 1
+          fi
+          echo "Cognito config is present in the bundle."
+
+      - name: No credential may be compiled into the public bundle
+        working-directory: frontend
+        run: |
+          # Anything VITE_-prefixed is readable by every user of the site.
+          if grep -rlE 'sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN' dist/ ; then
+            echo "::error::A credential was found in the built bundle."
+            exit 1
+          fi
+          echo "No credentials found in dist/."
+
+  check-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm install --package-lock-only=false --no-audit --no-fund
+
+      - name: Syntax-check backend sources
+        working-directory: backend
+        run: |
+          for f in $(find . -name '*.js' -not -path './node_modules/*'); do
+            node --check "$f"
+          done
+
+  check-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Syntax-check operational scripts
+        working-directory: scripts
+        run: |
+          for f in *.js; do node --check "$f"; done
+
+      - name: roster.json must be valid JSON
+        working-directory: scripts
+        run: node -e "JSON.parse(require('fs').readFileSync('roster.json','utf8')); console.log('roster.json OK')"
