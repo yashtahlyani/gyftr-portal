@@ -226,6 +226,21 @@ Admin → Team Directory if it ever happens.
 
 ### Passwords
 
+**Before assuming a password is wrong**, check what Cognito actually objects
+to — "Incorrect email or password" is also what it returns when the account
+does not exist in the pool the frontend was built against:
+
+```bash
+cd scripts
+npm run check-login -- --email <email> --password '<password>'   --pool <pool-id> --client <client-id>
+```
+
+It needs no AWS credentials and prints the real exception, which separates a
+wrong password from a wrong pool. (The sibling legal portal has a second
+wrinkle this repo does not: there, `create-cognito-users.js` sets a *random*
+password per user, so `Default@123` only works after a reset. Here every
+account is created with `Default@123` directly.)
+
 `Default@123` is a **temporary** password only. On first login the portal
 requires a new one, and there is no shared password afterwards. If someone is
 locked out, reset them from the Cognito console (or
