@@ -7,6 +7,7 @@
     "pg": "^8.11.3"
   },
   "scripts": {
+    "doctor": "node doctor.js",
     "smoke-test": "node smoke-test.js"
   }
 }

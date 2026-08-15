@@ -54,4 +54,12 @@ COPY --from=build /app/dist ./dist
 
 EXPOSE 7867
 
-CMD ["serve", "-s", "dist", "-l", "7867"]
+# Bind explicitly to 0.0.0.0. `-l 7867` leaves the interface to serve's
+# defaults; if that ever resolves to localhost the container looks fine from
+# inside while the load balancer health check fails from outside — which
+# presents as a 503 with a perfectly running container.
+# `-s` rewrites unknown paths to index.html, which the SPA router needs.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:7867/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["serve", "-s", "dist", "-l", "tcp://0.0.0.0:7867"]
