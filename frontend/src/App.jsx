@@ -26,7 +26,7 @@ const NAV = [
 
 export default function App() {
   const { authed, setAuthed, currentUser, displayName, role, userTeam, profileError,
-          login, logout, completeNewPassword, cancelPasswordChange, mustChangePassword } = useAuth();
+          login, logout, completeNewPassword, cancelPasswordChange, mustChangePassword, configError } = useAuth();
   const [view,       setView]       = useState("board");
   const [openId,     setOpenId]     = useState(null);
   const [openTab,    setOpenTab]    = useState("Update");
@@ -84,6 +84,7 @@ export default function App() {
       <Login
         login={login}
         onIn={() => setAuthed(true)}
+        configError={configError}
         mustChangePassword={mustChangePassword}
         completeNewPassword={completeNewPassword}
         cancelPasswordChange={cancelPasswordChange}

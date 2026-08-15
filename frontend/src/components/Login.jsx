@@ -164,7 +164,7 @@ function SetPassword({ email, completeNewPassword, onCancel }) {
 }
 
 /* ── Step 1: sign in ── */
-export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, mustChangePassword }) {
+export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, mustChangePassword, configError }) {
   const [email,   setEmail]   = useState("");
   const [pass,    setPass]    = useState("");
   const [err,     setErr]     = useState("");
@@ -183,6 +183,23 @@ export function Login({ onIn, login, completeNewPassword, cancelPasswordChange, 
       setLoading(false);
     }
   };
+
+  // Misconfigured build: say so plainly rather than letting people fail login
+  // attempts against a pool that was never wired up.
+  if (configError) {
+    return (
+      <Shell>
+        <div className="gx-card" style={{ padding:26 }}>
+          <h1 className="gx-disp" style={{ fontSize:21, fontWeight:700, margin:"0 0 8px" }}>Portal is not configured</h1>
+          <p style={{ fontSize:13.5, color:"var(--ink-soft)", margin:"0 0 14px" }}>{configError}</p>
+          <p style={{ fontSize:12.5, color:"var(--ink-soft)", margin:0 }}>
+            Signing in is not possible until the frontend is rebuilt. Please send
+            this message to whoever deployed it.
+          </p>
+        </div>
+      </Shell>
+    );
+  }
 
   if (mustChangePassword) {
     return (

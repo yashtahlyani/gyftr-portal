@@ -16,10 +16,28 @@ import { setAuthToken, setAuthTokenProvider, setOnSessionExpired, apiFetch } fro
 //   manager      → sees their own team's tasks
 //   user         → sees the tasks assigned to them, on any team
 
-const userPool = new CognitoUserPool({
-  UserPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
-  ClientId:   import.meta.env.VITE_COGNITO_CLIENT_ID,
-});
+// Built without VITE_COGNITO_* (a missing frontend/.env at build time), this
+// constructor throws "Both UserPoolId and ClientId are required" while the
+// module is still loading — before React renders anything. The result is a
+// blank white page with no clue why, and the build that produced it succeeded
+// silently. Fail into a readable message instead.
+function createUserPool() {
+  const UserPoolId = import.meta.env.VITE_COGNITO_USER_POOL_ID;
+  const ClientId   = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  if (!UserPoolId || !ClientId) return null;
+  try {
+    return new CognitoUserPool({ UserPoolId, ClientId });
+  } catch (err) {
+    console.error("[useAuth] Cognito pool could not be created:", err.message);
+    return null;
+  }
+}
+
+const userPool = createUserPool();
+
+export const AUTH_CONFIG_ERROR = userPool
+  ? null
+  : "This build is missing its Cognito configuration (VITE_COGNITO_USER_POOL_ID / VITE_COGNITO_CLIENT_ID). Rebuild the frontend with frontend/.env present.";
 
 const RESET_STATE = {
   authed: false, email: "", currentUser: "", displayName: "",
@@ -31,6 +49,7 @@ const RESET_STATE = {
 // old one has expired, which is what stops the app breaking after an hour.
 function freshIdToken() {
   return new Promise((resolve) => {
+    if (!userPool) return resolve(null);
     const cognitoUser = userPool.getCurrentUser();
     if (!cognitoUser) return resolve(null);
     cognitoUser.getSession((err, session) => {
@@ -81,6 +100,7 @@ export function useAuth() {
 
   // Restore session from Cognito local storage on page load
   useEffect(() => {
+    if (!userPool) return;
     const cognitoUser = userPool.getCurrentUser();
     if (!cognitoUser) return;
     cognitoUser.getSession((err, session) => {
@@ -106,6 +126,7 @@ export function useAuth() {
   // account is still on a temporary password.
   const login = (email, password) =>
     new Promise((resolve, reject) => {
+      if (!userPool) return reject(new Error(AUTH_CONFIG_ERROR));
       const cognitoUser = new CognitoUser({ Username: email, Pool: userPool });
       const authDetails = new AuthenticationDetails({ Username: email, Password: password });
       cognitoUser.authenticateUser(authDetails, {
@@ -154,7 +175,7 @@ export function useAuth() {
   const cancelPasswordChange = () => setPendingChallenge(null);
 
   const logout = () => {
-    const cognitoUser = userPool.getCurrentUser();
+    const cognitoUser = userPool?.getCurrentUser();
     if (cognitoUser) cognitoUser.signOut();
     setAuthToken(null);
     setAuthTokenProvider(null);
@@ -164,6 +185,7 @@ export function useAuth() {
 
   return {
     ...state,
+    configError: AUTH_CONFIG_ERROR,
     mustChangePassword: !!pendingChallenge,
     setAuthed: (v) => setState(s => ({ ...s, authed: v })),
     login,
