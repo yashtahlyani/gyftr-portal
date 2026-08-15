@@ -4,9 +4,11 @@
   "private": true,
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "amazon-cognito-identity-js": "^6.3.12",
     "pg": "^8.11.3"
   },
   "scripts": {
+    "check-login": "node check-login.js",
     "doctor": "node doctor.js",
     "smoke-test": "node smoke-test.js"
   }
