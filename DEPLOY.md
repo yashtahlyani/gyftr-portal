@@ -41,12 +41,23 @@ pm2 restart gyftr-api
 restarting is always safe. On the very first boot it also seeds the property
 list from `backend/seed/properties.json`.
 
-Check it came up:
+Check it came up — and that it can actually reach the database:
 
 ```bash
-curl -s localhost:7878/health     # {"ok":true}
+curl -s localhost:7878/health        # {"ok":true} — process is alive
+curl -s localhost:7878/health/deep   # {"ok":true,"database":"reachable"}
 pm2 logs gyftr-api --lines 30
 ```
+
+`/health` only proves the process is running; it is what the ALB polls and it
+deliberately does not touch the database. **`/health/deep` is the one that
+matters when something is wrong** — it returns 503 naming the actual error.
+"pm2 says online and the ALB says healthy while the portal is dead" is exactly
+the gap it closes.
+
+The API no longer exits when the database is unreachable — it stays up, keeps
+retrying every 10s, and reports the reason on `/health/deep`. So a 503 from the
+ALB now means the container is genuinely not running, not that RDS hiccupped.
 
 ## 2. Frontend
 
